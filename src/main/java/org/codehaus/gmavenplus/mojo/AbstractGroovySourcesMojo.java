@@ -27,6 +27,8 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 
+import static java.util.Collections.singletonList;
+
 
 /**
  * This mojo provides access to the Groovy sources.
@@ -180,7 +182,7 @@ public abstract class AbstractGroovySourcesMojo extends AbstractGroovyMojo {
             FileSet groovyFileSet = new FileSet();
             String groovyDirectory = "src" + File.separator + defaultSubDirectory + File.separator + "groovy";
             groovyFileSet.setDirectory(project.getBasedir() + File.separator + groovyDirectory);
-            groovyFileSet.setIncludes(Arrays.asList(GROOVY_SOURCES_PATTERN));
+            groovyFileSet.setIncludes(singletonList(GROOVY_SOURCES_PATTERN));
             groovyFileSets = new FileSet[] {groovyFileSet};
         }
 
@@ -190,14 +192,14 @@ public abstract class AbstractGroovySourcesMojo extends AbstractGroovyMojo {
                 for (Object sourceRoot : project.getTestCompileSourceRoots()) {
                     FileSet javaFileSet = new FileSet();
                     javaFileSet.setDirectory((String) sourceRoot);
-                    javaFileSet.setIncludes(Arrays.asList(JAVA_SOURCES_PATTERN));
+                    javaFileSet.setIncludes(singletonList(JAVA_SOURCES_PATTERN));
                     javaFileSets.add(javaFileSet);
                 }
             } else {
                 for (Object sourceRoot : project.getCompileSourceRoots()) {
                     FileSet javaFileSet = new FileSet();
                     javaFileSet.setDirectory((String) sourceRoot);
-                    javaFileSet.setIncludes(Arrays.asList(JAVA_SOURCES_PATTERN));
+                    javaFileSet.setIncludes(singletonList(JAVA_SOURCES_PATTERN));
                     javaFileSets.add(javaFileSet);
                 }
             }

@@ -16,22 +16,13 @@
 
 package org.codehaus.gmavenplus.util;
 
-import groovy.lang.GroovySystem;
 import org.apache.maven.plugin.logging.Log;
-import org.codehaus.groovy.runtime.InvokerHelper;
+import org.junit.Before;
 import org.junit.Test;
-import org.mockito.ArgumentCaptor;
 
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertFalse;
-import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.*;
 import static org.mockito.Matchers.anyString;
-import static org.mockito.Mockito.doReturn;
-import static org.mockito.Mockito.doThrow;
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.spy;
-import static org.mockito.Mockito.times;
-import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.*;
 
 
 /**
@@ -41,28 +32,35 @@ import static org.mockito.Mockito.verify;
  */
 public class ClassWranglerTest {
 
+    private ClassWrangler classWrangler;
+
+    @Before
+    public void init() {
+        classWrangler = spy(new ClassWrangler());
+        classWrangler.log = mock(Log.class);
+    }
+
     @Test
     public void testGetGroovyJar() throws Exception {
-        ClassWrangler classWrangler = spy(new ClassWrangler(mock(ClassLoader.class), mock(Log.class)));
         doThrow(new ClassNotFoundException("Throwing exception to force GMavenPlus to get version from jar.")).when(classWrangler).getClass(anyString());
         doReturn("some/path/groovy-all-1.5.0.jar").when(classWrangler).getJarPath();
         assertEquals("groovy-all-1.5.0.jar", classWrangler.getGroovyJar());
     }
 
     @Test
-    public void testGetGroovyVersionStringFromGroovySystemThenFromInvokerHelper() throws Exception {
-        ClassWrangler classWrangler = spy(new ClassWrangler(mock(ClassLoader.class), mock(Log.class)));
-        doReturn("some/path/groovy-all-1.5.0.jar").when(classWrangler).getJarPath();
-        ArgumentCaptor<String> classArg = ArgumentCaptor.forClass(String.class);
-        classWrangler.getGroovyVersionString();
-        verify(classWrangler, times(2)).getClass(classArg.capture());
-        assertEquals(GroovySystem.class.getCanonicalName(), classArg.getAllValues().get(0));
-        assertEquals(InvokerHelper.class.getCanonicalName(), classArg.getAllValues().get(1));
+    public void testGetGroovyVersionStringFromGroovySystem() throws Exception {
+        doReturn(GroovySystem.class).when(classWrangler).getClass(anyString());
+        assertEquals("1.5.0", classWrangler.getGroovyVersionString());
+    }
+
+    @Test
+    public void testGetGroovyVersionStringFromInvokerHelper() throws Exception {
+        doThrow(new ClassNotFoundException("Throwing exception to force GMavenPlus to get version from InvokerHelper.")).doReturn(InvokerHelper.class).when(classWrangler).getClass(anyString());
+        assertEquals("1.5.0", classWrangler.getGroovyVersionString());
     }
 
     @Test
     public void testGetGroovyVersionStringFromJar() throws Exception {
-        ClassWrangler classWrangler = spy(new ClassWrangler(mock(ClassLoader.class), mock(Log.class)));
         doThrow(new ClassNotFoundException("Throwing exception to force GMavenPlus to get version from jar.")).when(classWrangler).getClass(anyString());
         doReturn("some/path/groovy-all-1.5.0.jar").when(classWrangler).getJarPath();
         assertEquals("1.5.0", classWrangler.getGroovyVersionString());
@@ -70,7 +68,6 @@ public class ClassWranglerTest {
 
     @Test
     public void testGetGroovyVersionWithIndyFromJar() throws Exception {
-        ClassWrangler classWrangler = spy(new ClassWrangler(mock(ClassLoader.class), mock(Log.class)));
         doThrow(new ClassNotFoundException("Throwing exception to force GMavenPlus to get version from jar.")).when(classWrangler).getClass(anyString());
         doReturn("some/path/groovy-all-2.4.0-indy.jar").when(classWrangler).getJarPath();
         assertEquals("2.4.0", classWrangler.getGroovyVersion().toString());
@@ -78,23 +75,157 @@ public class ClassWranglerTest {
 
     @Test
     public void testGetGroovyVersionWithGrooidFromJar() throws Exception {
-        ClassWrangler classWrangler = spy(new ClassWrangler(mock(ClassLoader.class), mock(Log.class)));
         doReturn("some/path/groovy-all-2.4.0-grooid.jar").when(classWrangler).getJarPath();
         assertEquals("2.4.0", classWrangler.getGroovyVersion().toString());
     }
 
     @Test
     public void testIsGroovyIndyTrue() throws Exception {
-        ClassWrangler classWrangler = spy(new ClassWrangler(mock(ClassLoader.class), mock(Log.class)));
         doReturn(null).when(classWrangler).getClass(anyString());  // make it appear Groovy is indy
         assertTrue(classWrangler.isGroovyIndy());
     }
 
     @Test
     public void testIsGroovyIndyFalse() throws Exception {
-        ClassWrangler classWrangler = spy(new ClassWrangler(mock(ClassLoader.class), mock(Log.class)));
         doThrow(new ClassNotFoundException("Throwing exception to make it appear Groovy is not indy.")).when(classWrangler).getClass(anyString());
         assertFalse(classWrangler.isGroovyIndy());
+    }
+
+    @Test(expected = IllegalArgumentException.class)
+    public void testFindConstructorClassNull() {
+        classWrangler.findConstructor(null);
+    }
+
+    @Test(expected = IllegalArgumentException.class)
+    public void testFindConstructorNotFound() {
+        classWrangler.findConstructor(TestClass.class, TestClass.class);
+    }
+
+    @Test(expected = IllegalArgumentException.class)
+    public void testFindFieldClassNull() {
+        classWrangler.findField(null, null, null);
+    }
+
+    @Test(expected = IllegalArgumentException.class)
+    public void testFindFieldNameAndTypeNull() {
+        classWrangler.findField(TestClass.class, null, null);
+    }
+
+    @Test(expected = IllegalArgumentException.class)
+    public void testFindFieldNotFound() {
+        classWrangler.findField(TestClass.class, "nonExistentField", null);
+    }
+
+    @Test(expected = IllegalArgumentException.class)
+    public void testFindMethodClassNull() {
+        classWrangler.findMethod(null, null);
+    }
+
+    @Test(expected = IllegalArgumentException.class)
+    public void testFindMethodNameNull() {
+        classWrangler.findMethod(TestClass.class, null);
+    }
+
+    @Test(expected = IllegalArgumentException.class)
+    public void testFindMethodNotFound() {
+        classWrangler.findMethod(TestClass.class, "nonExistentMethod");
+    }
+
+    @Test(expected = IllegalArgumentException.class)
+    public void testGetEnumConstantNonEnumClass() {
+        classWrangler.getEnumValue(TestClass.class, "VALUE");
+    }
+
+    @Test(expected = IllegalArgumentException.class)
+    public void testGetEnumConstantValueNotFound() {
+        classWrangler.getEnumValue(TestClass.ENUM.class, "NON_EXISTENT_VALUE");
+    }
+
+    @Test(expected = IllegalArgumentException.class)
+    public void testGetStaticFieldNotStatic() throws Exception {
+        classWrangler.getStaticField(classWrangler.findField(TestClass.class, "stringField", String.class));
+    }
+
+    @Test(expected = IllegalArgumentException.class)
+    public void testInvokeConstructorNull() throws Exception {
+        classWrangler.invokeConstructor(null);
+    }
+
+    @Test(expected = IllegalArgumentException.class)
+    public void testInvokeMethodMethodNull() throws Exception {
+        classWrangler.invokeMethod(null, null);
+    }
+
+    @Test(expected = IllegalArgumentException.class)
+    public void testInvokeMethodObjectNull() throws Exception {
+        classWrangler.invokeMethod(TestClass.class.getMethod("getStringField"), null);
+    }
+
+    @Test(expected = IllegalArgumentException.class)
+    public void testInvokeStaticMethodMethodNull() throws Exception {
+        classWrangler.invokeStaticMethod(null);
+    }
+
+    @Test(expected = IllegalArgumentException.class)
+    public void testInvokeStaticMethodMethodNotStatic() throws Exception {
+        classWrangler.invokeStaticMethod(TestClass.class.getMethod("getStringField"));
+    }
+
+    @Test
+    public void testConstructor() throws Exception {
+        classWrangler.invokeConstructor(classWrangler.findConstructor(ClassWrangler.class));
+    }
+
+    @Test
+    public void testHappyPaths() throws Exception {
+        String expectedString = "some string";
+        Object test1 = classWrangler.invokeConstructor(classWrangler.findConstructor(TestClass.class));
+        classWrangler.invokeMethod(classWrangler.findMethod(TestClass.class, "setStringField", String.class), test1, expectedString);
+        assertEquals(expectedString, classWrangler.invokeMethod(classWrangler.findMethod(TestClass.class, "getStringField"), test1));
+        assertEquals(TestClass.HELLO_WORLD, classWrangler.invokeStaticMethod(classWrangler.findMethod(TestClass.class, "helloWorld")));
+        assertEquals(TestClass.ENUM.VALUE, classWrangler.getEnumValue(TestClass.ENUM.class, "VALUE"));
+        assertEquals(TestClass.HELLO_WORLD, classWrangler.getStaticField(classWrangler.findField(TestClass.class, "HELLO_WORLD", null)));
+        Object test2 = classWrangler.invokeConstructor(classWrangler.findConstructor(TestClass.class, String.class), expectedString );
+        assertEquals(expectedString, classWrangler.getField(classWrangler.findField(TestClass.class, "stringField", String.class), test2));
+    }
+
+    public static class TestClass {
+        public static final String HELLO_WORLD = "Hello world!";
+        public String stringField;
+
+        public TestClass() { }
+
+        public TestClass(String newStringField) {
+            stringField = newStringField;
+        }
+
+        public String getStringField() {
+            return stringField;
+        }
+
+        public void setStringField(String newStringField) {
+            stringField = newStringField;
+        }
+
+        public static String helloWorld() {
+            return HELLO_WORLD;
+        }
+
+        protected static enum ENUM {
+            VALUE
+        }
+    }
+
+    public static class GroovySystem {
+        public static String getVersion() {
+            return "1.5.0";
+        }
+    }
+
+    public static class InvokerHelper {
+        public static String getVersion() {
+            return "1.5.0";
+        }
     }
 
 }

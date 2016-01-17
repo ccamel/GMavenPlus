@@ -32,11 +32,6 @@ import java.lang.reflect.InvocationTargetException;
 import java.net.MalformedURLException;
 import java.net.URL;
 
-import static org.codehaus.gmavenplus.util.ReflectionUtils.findConstructor;
-import static org.codehaus.gmavenplus.util.ReflectionUtils.findMethod;
-import static org.codehaus.gmavenplus.util.ReflectionUtils.invokeConstructor;
-import static org.codehaus.gmavenplus.util.ReflectionUtils.invokeMethod;
-
 
 /**
  * Executes Groovy scripts (in the pom or external), bound to the current project.
@@ -80,6 +75,13 @@ public class ExecuteMojo extends AbstractToolsMojo {
     protected String sourceEncoding;
 
     /**
+     * The ClassWrangler to use to work with Groovy classes.
+     *
+     * @component role-hint="ClassWrangler-Plugin"
+     */
+    protected ClassWrangler classWrangler;
+
+    /**
      * Executes this mojo.
      *
      * @throws MojoExecutionException If an unexpected problem occurs. Throwing this exception causes a "BUILD ERROR" message to be displayed
@@ -96,7 +98,7 @@ public class ExecuteMojo extends AbstractToolsMojo {
      * @throws MojoFailureException If an expected problem (such as a invocation failure) occurs. Throwing this exception causes a "BUILD FAILURE" message to be displayed
      */
     protected synchronized void doExecute() throws MojoExecutionException, MojoFailureException {
-        classWrangler = new ClassWrangler(Thread.currentThread().getContextClassLoader(), getLog());
+        classWrangler.initialize(Thread.currentThread().getContextClassLoader(), getLog());
 
         try {
             getLog().debug("Project test classpath:\n" + project.getTestClasspathElements());
@@ -106,8 +108,7 @@ public class ExecuteMojo extends AbstractToolsMojo {
         logPluginClasspath();
         classWrangler.logGroovyVersion(mojoExecution.getMojoDescriptor().getGoal());
 
-        if (groovyVersionSupportsAction()) {
-
+        if (groovyVersionSupportsAction(classWrangler)) {
             if (scripts == null || scripts.length == 0) {
                 getLog().info("No scripts specified for execution.  Skipping.");
                 return;
@@ -158,19 +159,19 @@ public class ExecuteMojo extends AbstractToolsMojo {
         Object shell;
         if (sourceEncoding != null) {
             Class<?> compilerConfigurationClass = classWrangler.getClass("org.codehaus.groovy.control.CompilerConfiguration");
-            Object compilerConfiguration = invokeConstructor(findConstructor(compilerConfigurationClass));
-            invokeMethod(findMethod(compilerConfigurationClass, "setSourceEncoding", String.class), compilerConfiguration, sourceEncoding);
-            shell = invokeConstructor(findConstructor(groovyShellClass, compilerConfigurationClass), compilerConfiguration);
+            Object compilerConfiguration = classWrangler.invokeConstructor(classWrangler.findConstructor(compilerConfigurationClass));
+            classWrangler.invokeMethod(classWrangler.findMethod(compilerConfigurationClass, "setSourceEncoding", String.class), compilerConfiguration, sourceEncoding);
+            shell = classWrangler.invokeConstructor(classWrangler.findConstructor(groovyShellClass, compilerConfigurationClass), compilerConfiguration);
         } else {
-            shell = invokeConstructor(findConstructor(groovyShellClass));
+            shell = classWrangler.invokeConstructor(classWrangler.findConstructor(groovyShellClass));
         }
-        initializeProperties();
+        initializeProperties(classWrangler);
         if (bindPropertiesToSeparateVariables) {
             for (Object k : properties.keySet()) {
-                invokeMethod(findMethod(groovyShellClass, "setProperty", String.class, Object.class), shell, k, properties.get(k));
+                classWrangler.invokeMethod(classWrangler.findMethod(groovyShellClass, "setProperty", String.class, Object.class), shell, k, properties.get(k));
             }
         } else {
-            invokeMethod(findMethod(groovyShellClass, "setProperty", String.class, Object.class), shell, "properties", properties);
+            classWrangler.invokeMethod(classWrangler.findMethod(groovyShellClass, "setProperty", String.class, Object.class), shell, "properties", properties);
         }
 
         return shell;
@@ -200,7 +201,7 @@ public class ExecuteMojo extends AbstractToolsMojo {
                         } else {
                             reader = new BufferedReader(new InputStreamReader(url.openStream()));
                         }
-                        invokeMethod(findMethod(groovyShellClass, "evaluate", Reader.class), shell, reader);
+                        classWrangler.invokeMethod(classWrangler.findMethod(groovyShellClass, "evaluate", Reader.class), shell, reader);
                     } finally {
                         FileUtils.closeQuietly(reader);
                     }
@@ -208,10 +209,10 @@ public class ExecuteMojo extends AbstractToolsMojo {
                     // it's not a URL to a script, try as a filename
                     File scriptFile = new File(script);
                     if (scriptFile.isFile()) {
-                        invokeMethod(findMethod(groovyShellClass, "evaluate", File.class), shell, scriptFile);
+                        classWrangler.invokeMethod(classWrangler.findMethod(groovyShellClass, "evaluate", File.class), shell, scriptFile);
                     } else {
                         // it's neither a filename or URL, treat as a script body
-                        invokeMethod(findMethod(groovyShellClass, "evaluate", String.class), shell, script);
+                        classWrangler.invokeMethod(classWrangler.findMethod(groovyShellClass, "evaluate", String.class), shell, script);
                     }
                 }
             } catch (IOException ioe) {

@@ -18,6 +18,7 @@ package org.codehaus.gmavenplus.mojo;
 
 import org.apache.maven.plugin.MojoExecution;
 import org.apache.maven.plugin.descriptor.MojoDescriptor;
+import org.apache.maven.plugin.logging.Log;
 import org.apache.maven.project.MavenProject;
 import org.codehaus.gmavenplus.model.Version;
 import org.codehaus.gmavenplus.util.ClassWrangler;
@@ -31,10 +32,10 @@ import org.mockito.MockitoAnnotations;
 import java.io.BufferedReader;
 import java.io.File;
 import java.io.FileReader;
+import java.util.ArrayList;
 
 import static org.junit.Assert.*;
-import static org.mockito.Mockito.doReturn;
-import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.*;
 
 
 /**
@@ -49,11 +50,15 @@ public class ExecuteMojoTest {
     public TemporaryFolder tmpDir = new TemporaryFolder();
 
     @Before
-    public void setup() {
+    public void setup() throws Exception {
         MockitoAnnotations.initMocks(this);
         executeMojo = new ExecuteMojo();
+        executeMojo.classWrangler = new ClassWrangler();
+        executeMojo.setLog(mock(Log.class));
         executeMojo.mojoExecution = mock(MojoExecution.class);
         MavenProject project = mock(MavenProject.class);
+        when(project.getTestClasspathElements()).thenReturn(new ArrayList());
+        when(project.getCompileClasspathElements()).thenReturn(new ArrayList());
         executeMojo.project = project;
         MojoDescriptor mockMojoDescriptor = mock(MojoDescriptor.class);
         doReturn(mockMojoDescriptor).when(executeMojo.mojoExecution).getMojoDescriptor();
@@ -116,16 +121,16 @@ public class ExecuteMojoTest {
 
     @Test
     public void testGroovyVersionSupportsActionTrue() {
-        executeMojo.classWrangler = mock(ClassWrangler.class);
+        executeMojo.classWrangler = spy(ClassWrangler.class);
         doReturn(Version.parseFromString("1.5.0")).when(executeMojo.classWrangler).getGroovyVersion();
-        assertTrue(executeMojo.groovyVersionSupportsAction());
+        assertTrue(executeMojo.groovyVersionSupportsAction(executeMojo.classWrangler));
     }
 
     @Test
     public void testGroovyVersionSupportsActionFalse() {
-        executeMojo.classWrangler = mock(ClassWrangler.class);
+        executeMojo.classWrangler = spy(ClassWrangler.class);
         doReturn(Version.parseFromString("1.0")).when(executeMojo.classWrangler).getGroovyVersion();
-        assertFalse(executeMojo.groovyVersionSupportsAction());
+        assertFalse(executeMojo.groovyVersionSupportsAction(executeMojo.classWrangler));
     }
 
 }

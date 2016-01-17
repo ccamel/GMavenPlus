@@ -17,12 +17,10 @@
 package org.codehaus.gmavenplus.mojo;
 
 import org.apache.maven.project.MavenProjectHelper;
+import org.codehaus.gmavenplus.util.ClassWrangler;
 
 import java.lang.reflect.InvocationTargetException;
 import java.util.Properties;
-
-import static org.codehaus.gmavenplus.util.ReflectionUtils.findConstructor;
-import static org.codehaus.gmavenplus.util.ReflectionUtils.invokeConstructor;
 
 
 /**
@@ -89,8 +87,10 @@ public abstract class AbstractToolsMojo extends AbstractGroovyMojo {
 
     /**
      * Initializes the properties field.
+     *
+     * @param classWrangler the ClassWrangler to use to access Groovy classes
      */
-    protected void initializeProperties() {
+    protected void initializeProperties(final ClassWrangler classWrangler) {
         if (project != null && !properties.containsKey("project")) {
             properties.put("project", project);
         }
@@ -111,7 +111,7 @@ public abstract class AbstractToolsMojo extends AbstractGroovyMojo {
         }
         if (!properties.containsKey("ant")) {
             try {
-                Object antBuilder = invokeConstructor(findConstructor(classWrangler.getClass("groovy.util.AntBuilder")));
+                Object antBuilder = classWrangler.invokeConstructor(classWrangler.findConstructor(classWrangler.getClass("groovy.util.AntBuilder")));
                 properties.put("ant", antBuilder);
             } catch (InvocationTargetException e) {
                 logUnableToInitializeAntBuilder(e);

@@ -69,73 +69,74 @@ public class AbstractCompileMojoTest {
     @Test
     public void testGroovyVersionSupportsActionTrue() {
         testMojo = new TestMojo("1.5.0");
-        assertTrue(testMojo.groovyVersionSupportsAction());
+        assertTrue(testMojo.groovyVersionSupportsAction(testMojo.classWrangler));
     }
 
     @Test
     public void testGroovyVersionSupportsActionFalse() {
         testMojo = new TestMojo("1.1-rc-3");
-        assertFalse(testMojo.groovyVersionSupportsAction());
+        assertFalse(testMojo.groovyVersionSupportsAction(testMojo.classWrangler));
     }
 
     @Test(expected = IllegalArgumentException.class)
     public void testJava6WithOldGroovy() {
         testMojo = new TestMojo("2.1.2");
         testMojo.targetBytecode = "1.6";
-        testMojo.verifyGroovyVersionSupportsTargetBytecode();
+        testMojo.verifyGroovyVersionSupportsTargetBytecode(testMojo.classWrangler);
     }
 
     @Test
     public void testJava6WithNewerGroovy() {
         testMojo = new TestMojo("2.1.3");
         testMojo.targetBytecode = "1.6";
-        testMojo.verifyGroovyVersionSupportsTargetBytecode();
+        testMojo.verifyGroovyVersionSupportsTargetBytecode(testMojo.classWrangler);
     }
 
     @Test(expected = IllegalArgumentException.class)
     public void testJava7WithOldGroovy() {
         testMojo = new TestMojo("2.1.2");
         testMojo.targetBytecode = "1.7";
-        testMojo.verifyGroovyVersionSupportsTargetBytecode();
+        testMojo.verifyGroovyVersionSupportsTargetBytecode(testMojo.classWrangler);
     }
 
     @Test
     public void testJava7WithNewerGroovy() {
         testMojo = new TestMojo("2.1.3");
         testMojo.targetBytecode = "1.7";
-        testMojo.verifyGroovyVersionSupportsTargetBytecode();
+        testMojo.verifyGroovyVersionSupportsTargetBytecode(testMojo.classWrangler);
     }
 
     @Test(expected = IllegalArgumentException.class)
     public void testJava8WithOldGroovy() {
         testMojo = new TestMojo("2.3.2");
         testMojo.targetBytecode = "1.8";
-        testMojo.verifyGroovyVersionSupportsTargetBytecode();
+        testMojo.verifyGroovyVersionSupportsTargetBytecode(testMojo.classWrangler);
     }
 
     @Test
     public void testJava8WithNewerGroovy() {
         testMojo = new TestMojo("2.3.3");
         testMojo.targetBytecode = "1.8";
-        testMojo.verifyGroovyVersionSupportsTargetBytecode();
+        testMojo.verifyGroovyVersionSupportsTargetBytecode(testMojo.classWrangler);
     }
 
     @Test(expected = IllegalArgumentException.class)
     public void testJava9() {
         testMojo = new TestMojo("2.4.3");
         testMojo.targetBytecode = "1.9";
-        testMojo.verifyGroovyVersionSupportsTargetBytecode();
+        testMojo.verifyGroovyVersionSupportsTargetBytecode(testMojo.classWrangler);
     }
 
     @Test(expected = IllegalArgumentException.class)
     public void testUnrecognizedJava() {
         testMojo = new TestMojo("2.1.2");
         testMojo.targetBytecode = "unknown";
-        testMojo.verifyGroovyVersionSupportsTargetBytecode();
+        testMojo.verifyGroovyVersionSupportsTargetBytecode(testMojo.classWrangler);
     }
 
     public class TestMojo extends AbstractCompileMojo {
         private String overrideGroovyVersion = minGroovyVersion.toString();
+        public ClassWrangler classWrangler;
 
         protected TestMojo() {
             classWrangler = mock(ClassWrangler.class);

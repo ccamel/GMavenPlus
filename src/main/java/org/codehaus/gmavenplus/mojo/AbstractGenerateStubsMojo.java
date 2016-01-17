@@ -24,9 +24,10 @@ import org.codehaus.gmavenplus.util.FileUtils;
 import java.io.File;
 import java.lang.reflect.InvocationTargetException;
 import java.net.MalformedURLException;
-import java.util.*;
-
-import static org.codehaus.gmavenplus.util.ReflectionUtils.*;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.Map;
+import java.util.Set;
 
 
 /**
@@ -130,11 +131,18 @@ public abstract class AbstractGenerateStubsMojo extends AbstractGroovyStubSource
      */
     protected int tolerance;
 
+
+    /**
+     * The ClassWrangler to use to work with Groovy classes.
+     *
+     * @component role-hint="ClassWrangler-Compile"
+     */
+    protected ClassWrangler classWrangler;
+
     /**
      * Performs the stub generation on the specified source files.
      *
      * @param stubSources the sources to perform stub generation on
-     * @param classpath The classpath to use for compilation
      * @param outputDirectory the directory to write the stub files to
      * @throws ClassNotFoundException when a class needed for stub generation cannot be found
      * @throws InstantiationException when a class needed for stub generation cannot be instantiated
@@ -142,9 +150,7 @@ public abstract class AbstractGenerateStubsMojo extends AbstractGroovyStubSource
      * @throws InvocationTargetException when a reflection invocation needed for stub generation cannot be completed
      * @throws MalformedURLException when a classpath element provides a malformed URL
      */
-    protected synchronized void doStubGeneration(final Set<File> stubSources, final List classpath, final File outputDirectory) throws ClassNotFoundException, InvocationTargetException, IllegalAccessException, InstantiationException, MalformedURLException {
-        classWrangler = new ClassWrangler(classpath, getLog());
-
+    protected synchronized void doStubGeneration(final Set<File> stubSources, final File outputDirectory) throws ClassNotFoundException, InvocationTargetException, IllegalAccessException, InstantiationException, MalformedURLException {
         logPluginClasspath();
         classWrangler.logGroovyVersion(mojoExecution.getMojoDescriptor().getGoal());
 
@@ -153,7 +159,7 @@ public abstract class AbstractGenerateStubsMojo extends AbstractGroovyStubSource
             return;
         }
 
-        if (!groovyVersionSupportsAction()) {
+        if (!groovyVersionSupportsAction(classWrangler)) {
             getLog().error("Your Groovy version (" + classWrangler.getGroovyVersionString() + ") doesn't support stub generation.  The minimum version of Groovy required is " + minGroovyVersion + ".  Skipping stub generation.");
             return;
         }
@@ -165,14 +171,14 @@ public abstract class AbstractGenerateStubsMojo extends AbstractGroovyStubSource
 
         // setup stub generation options
         Object compilerConfiguration = setupCompilerConfiguration(outputDirectory, compilerConfigurationClass);
-        Object groovyClassLoader = invokeConstructor(findConstructor(groovyClassLoaderClass, ClassLoader.class, compilerConfigurationClass), classWrangler.getClassLoader(), compilerConfiguration);
-        Object javaStubCompilationUnit = invokeConstructor(findConstructor(javaStubCompilationUnitClass, compilerConfigurationClass, groovyClassLoaderClass, File.class), compilerConfiguration, groovyClassLoader, outputDirectory);
+        Object groovyClassLoader = classWrangler.invokeConstructor(classWrangler.findConstructor(groovyClassLoaderClass, ClassLoader.class, compilerConfigurationClass), classWrangler.getClassLoader(), compilerConfiguration);
+        Object javaStubCompilationUnit = classWrangler.invokeConstructor(classWrangler.findConstructor(javaStubCompilationUnitClass, compilerConfigurationClass, groovyClassLoaderClass, File.class), compilerConfiguration, groovyClassLoader, outputDirectory);
 
         // add Groovy sources
         addGroovySources(stubSources, compilerConfigurationClass, javaStubCompilationUnitClass, compilerConfiguration, javaStubCompilationUnit);
 
         // generate the stubs
-        invokeMethod(findMethod(javaStubCompilationUnitClass, "compile"), javaStubCompilationUnit);
+        classWrangler.invokeMethod(classWrangler.findMethod(javaStubCompilationUnitClass, "compile"), javaStubCompilationUnit);
 
         // log generated stubs
         getLog().info("Generated " + getStubs().size() + " stub" + (getStubs().size() > 1 || getStubs().size() == 0 ? "s" : "") + ".");
@@ -189,19 +195,19 @@ public abstract class AbstractGenerateStubsMojo extends AbstractGroovyStubSource
      * @throws InvocationTargetException when a reflection invocation needed for stub generation cannot be completed
      */
     protected Object setupCompilerConfiguration(final File outputDirectory, final Class compilerConfigurationClass) throws InvocationTargetException, IllegalAccessException, InstantiationException {
-        Object compilerConfiguration = invokeConstructor(findConstructor(compilerConfigurationClass));
-        invokeMethod(findMethod(compilerConfigurationClass, "setDebug", boolean.class), compilerConfiguration, debug);
-        invokeMethod(findMethod(compilerConfigurationClass, "setVerbose", boolean.class), compilerConfiguration, verbose);
-        invokeMethod(findMethod(compilerConfigurationClass, "setWarningLevel", int.class), compilerConfiguration, warningLevel);
-        invokeMethod(findMethod(compilerConfigurationClass, "setTolerance", int.class), compilerConfiguration, tolerance);
-        invokeMethod(findMethod(compilerConfigurationClass, "setTargetBytecode", String.class), compilerConfiguration, targetBytecode);
+        Object compilerConfiguration = classWrangler.invokeConstructor(classWrangler.findConstructor(compilerConfigurationClass));
+        classWrangler.invokeMethod(classWrangler.findMethod(compilerConfigurationClass, "setDebug", boolean.class), compilerConfiguration, debug);
+        classWrangler.invokeMethod(classWrangler.findMethod(compilerConfigurationClass, "setVerbose", boolean.class), compilerConfiguration, verbose);
+        classWrangler.invokeMethod(classWrangler.findMethod(compilerConfigurationClass, "setWarningLevel", int.class), compilerConfiguration, warningLevel);
+        classWrangler.invokeMethod(classWrangler.findMethod(compilerConfigurationClass, "setTolerance", int.class), compilerConfiguration, tolerance);
+        classWrangler.invokeMethod(classWrangler.findMethod(compilerConfigurationClass, "setTargetBytecode", String.class), compilerConfiguration, targetBytecode);
         if (sourceEncoding != null) {
-            invokeMethod(findMethod(compilerConfigurationClass, "setSourceEncoding", String.class), compilerConfiguration, sourceEncoding);
+            classWrangler.invokeMethod(classWrangler.findMethod(compilerConfigurationClass, "setSourceEncoding", String.class), compilerConfiguration, sourceEncoding);
         }
         Map<String, Object> options = new HashMap<String, Object>();
         options.put("stubDir", outputDirectory);
         options.put("keepStubs", Boolean.TRUE);
-        invokeMethod(findMethod(compilerConfigurationClass, "setJointCompilationOptions", Map.class), compilerConfiguration, options);
+        classWrangler.invokeMethod(classWrangler.findMethod(compilerConfigurationClass, "setJointCompilationOptions", Map.class), compilerConfiguration, options);
 
         return compilerConfiguration;
     }
@@ -222,25 +228,25 @@ public abstract class AbstractGenerateStubsMojo extends AbstractGroovyStubSource
         for (File stubSource : stubSources) {
             scriptExtensions.add(FileUtils.getFileExtension(stubSource));
         }
-        getLog().debug("Detected Groovy file extensions: "+ scriptExtensions + ".");
+        getLog().debug("Detected Groovy file extensions: " + scriptExtensions + ".");
         if (supportsSettingExtensions()) {
-            invokeMethod(findMethod(compilerConfigurationClass, "setScriptExtensions", Set.class), compilerConfiguration, scriptExtensions);
+            classWrangler.invokeMethod(classWrangler.findMethod(compilerConfigurationClass, "setScriptExtensions", Set.class), compilerConfiguration, scriptExtensions);
         }
         getLog().debug("Adding Groovy to generate stubs for:");
         for (File stubSource : stubSources) {
             getLog().debug("    " + stubSource);
             if (supportsSettingExtensions()) {
-                invokeMethod(findMethod(javaStubCompilationUnitClass, "addSource", File.class), javaStubCompilationUnit, stubSource);
+                classWrangler.invokeMethod(classWrangler.findMethod(javaStubCompilationUnitClass, "addSource", File.class), javaStubCompilationUnit, stubSource);
             } else {
                 DotGroovyFile dotGroovyFile = new DotGroovyFile(stubSource);
                 dotGroovyFile.setScriptExtensions(scriptExtensions);
-                invokeMethod(findMethod(javaStubCompilationUnitClass, "addSource", File.class), javaStubCompilationUnit, dotGroovyFile);
+                classWrangler.invokeMethod(classWrangler.findMethod(javaStubCompilationUnitClass, "addSource", File.class), javaStubCompilationUnit, dotGroovyFile);
             }
         }
     }
 
     protected boolean supportsSettingExtensions() {
-        return groovyAtLeast(GROOVY_1_8_3) && (groovyOlderThan(GROOVY_1_9_0_BETA1) || groovyNewerThan(GROOVY_1_9_0_BETA3));
+        return groovyAtLeast(classWrangler, GROOVY_1_8_3) && (groovyOlderThan(classWrangler, GROOVY_1_9_0_BETA1) || groovyNewerThan(classWrangler, GROOVY_1_9_0_BETA3));
     }
 
     /**

@@ -66,9 +66,10 @@ public class GenerateTestStubsMojo extends AbstractGenerateStubsMojo {
                 } catch (DependencyResolutionRequiredException e) {
                     getLog().warn("Unable to log project test classpath", e);
                 }
-
-                doStubGeneration(getTestSources(), project.getTestClasspathElements(), testStubsOutputDirectory);
+                classWrangler.initialize(project.getTestClasspathElements(), getLog());
+                doStubGeneration(getTestSources(), testStubsOutputDirectory);
                 resetStubModifiedDates(getTestStubs());
+                getLog().info("Generated " + getTestStubs().size() + " stub" + (getTestStubs().size() > 1 || getTestStubs().size() == 0 ? "s" : "") + ".");
 
                 // add stubs to project source so the Maven Compiler Plugin can find them
                 project.addTestCompileSourceRoot(testStubsOutputDirectory.getAbsolutePath());

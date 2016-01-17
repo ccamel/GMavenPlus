@@ -19,6 +19,7 @@ package org.codehaus.gmavenplus.mojo;
 import org.apache.maven.artifact.DependencyResolutionRequiredException;
 import org.apache.maven.plugin.MojoExecutionException;
 import org.apache.maven.plugin.MojoFailureException;
+import org.codehaus.gmavenplus.util.ClassWrangler;
 
 import java.lang.reflect.InvocationTargetException;
 import java.net.MalformedURLException;
@@ -46,6 +47,13 @@ import java.net.MalformedURLException;
 public class CompileTestsMojo extends AbstractCompileMojo {
 
     /**
+     * The ClassWrangler to use to work with Groovy classes.
+     *
+     * @component role-hint="ClassWrangler-Test"
+     */
+    protected ClassWrangler classWrangler;
+
+    /**
      * Executes this mojo.
      *
      * @throws MojoExecutionException If an unexpected problem occurs. Throwing this exception causes a "BUILD ERROR" message to be displayed
@@ -59,7 +67,8 @@ public class CompileTestsMojo extends AbstractCompileMojo {
                 } catch (DependencyResolutionRequiredException e) {
                     getLog().warn("Unable to log project test classpath", e);
                 }
-                doCompile(getTestSources(), project.getTestClasspathElements(), testOutputDirectory);
+                classWrangler.initialize(project.getTestClasspathElements(), getLog());
+                doCompile(classWrangler, getTestSources(), testOutputDirectory);
             } catch (ClassNotFoundException e) {
                 throw new MojoExecutionException("Unable to get a Groovy class from classpath.  Do you have Groovy as a compile dependency in your project?", e);
             } catch (InvocationTargetException e) {

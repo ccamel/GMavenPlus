@@ -24,13 +24,6 @@ import org.codehaus.gmavenplus.util.NoExitSecurityManager;
 
 import java.lang.reflect.InvocationTargetException;
 
-import static org.codehaus.gmavenplus.util.ReflectionUtils.findConstructor;
-import static org.codehaus.gmavenplus.util.ReflectionUtils.invokeConstructor;
-import static org.codehaus.gmavenplus.util.ReflectionUtils.findField;
-import static org.codehaus.gmavenplus.util.ReflectionUtils.findMethod;
-import static org.codehaus.gmavenplus.util.ReflectionUtils.invokeMethod;
-import static org.codehaus.gmavenplus.util.ReflectionUtils.invokeStaticMethod;
-
 
 /**
  * Launches a Groovy shell bound to the current project.
@@ -62,13 +55,20 @@ public class ShellMojo extends AbstractToolsMojo {
     protected String verbosity;
 
     /**
+     * The ClassWrangler to use to work with Groovy classes.
+     *
+     * @component role-hint="ClassWrangler-Plugin"
+     */
+    protected ClassWrangler classWrangler;
+
+    /**
      * Executes this mojo.
      *
      * @throws MojoExecutionException If an unexpected problem occurs. Throwing this exception causes a "BUILD ERROR" message to be displayed
      * @throws MojoFailureException If an expected problem (such as a invocation failure) occurs. Throwing this exception causes a "BUILD FAILURE" message to be displayed
      */
     public void execute() throws MojoExecutionException, MojoFailureException {
-        classWrangler = new ClassWrangler(Thread.currentThread().getContextClassLoader(), getLog());
+        classWrangler.initialize(Thread.currentThread().getContextClassLoader(), getLog());
 
         try {
             getLog().debug("Project test classpath:\n" + project.getTestClasspathElements());
@@ -78,8 +78,7 @@ public class ShellMojo extends AbstractToolsMojo {
         logPluginClasspath();
         classWrangler.logGroovyVersion(mojoExecution.getMojoDescriptor().getGoal());
 
-        if (groovyVersionSupportsAction()) {
-
+        if (groovyVersionSupportsAction(classWrangler)) {
             final SecurityManager sm = System.getSecurityManager();
             try {
                 if (!allowSystemExits) {
@@ -97,7 +96,7 @@ public class ShellMojo extends AbstractToolsMojo {
                 Object shell = setupShell(shellClass, bindingClass, ioClass, verbosityClass, loggerClass);
 
                 // run the shell
-                invokeMethod(findMethod(shellClass, "run", String.class), shell, (String) null);
+                classWrangler.invokeMethod(classWrangler.findMethod(shellClass, "run", String.class), shell, (String) null);
             } catch (ClassNotFoundException e) {
                 throw new MojoExecutionException("Unable to get a Groovy class from classpath.  Do you have Groovy as a compile dependency in your project or the plugin?", e);
             } catch (InvocationTargetException e) {
@@ -134,20 +133,20 @@ public class ShellMojo extends AbstractToolsMojo {
      * @throws InvocationTargetException when a reflection invocation needed for setting up a shell cannot be completed
      */
     protected Object setupShell(final Class<?> shellClass, final Class<?> bindingClass, final Class<?> ioClass, final Class<?> verbosityClass, final Class<?> loggerClass) throws InvocationTargetException, IllegalAccessException, InstantiationException {
-        Object binding = invokeConstructor(findConstructor(bindingClass));
-        initializeProperties();
+        Object binding = classWrangler.invokeConstructor(classWrangler.findConstructor(bindingClass));
+        initializeProperties(classWrangler);
         if (bindPropertiesToSeparateVariables) {
             for (Object k : properties.keySet()) {
-                invokeMethod(findMethod(bindingClass, "setVariable", String.class, Object.class), binding, k, properties.get(k));
+                classWrangler.invokeMethod(classWrangler.findMethod(bindingClass, "setVariable", String.class, Object.class), binding, k, properties.get(k));
             }
         } else {
-            invokeMethod(findMethod(bindingClass, "setVariable", String.class, Object.class), binding, "properties", properties);
+            classWrangler.invokeMethod(classWrangler.findMethod(bindingClass, "setVariable", String.class, Object.class), binding, "properties", properties);
         }
-        Object io = invokeConstructor(findConstructor(ioClass));
-        invokeMethod(findMethod(ioClass, "setVerbosity", verbosityClass), io, invokeStaticMethod(findMethod(verbosityClass, "forName", String.class), verbosity));
-        findField(loggerClass, "io", ioClass).set(null, io);
+        Object io = classWrangler.invokeConstructor(classWrangler.findConstructor(ioClass));
+        classWrangler.invokeMethod(classWrangler.findMethod(ioClass, "setVerbosity", verbosityClass), io, classWrangler.invokeStaticMethod(classWrangler.findMethod(verbosityClass, "forName", String.class), verbosity));
+        classWrangler.findField(loggerClass, "io", ioClass).set(null, io);
 
-        return invokeConstructor(findConstructor(shellClass, ClassLoader.class, bindingClass, ioClass), Thread.currentThread().getContextClassLoader(), binding, io);
+        return classWrangler.invokeConstructor(classWrangler.findConstructor(shellClass, ClassLoader.class, bindingClass, ioClass), Thread.currentThread().getContextClassLoader(), binding, io);
     }
 
 }

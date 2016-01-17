@@ -20,31 +20,40 @@ import org.apache.maven.plugin.logging.Log;
 import org.codehaus.gmavenplus.model.Version;
 
 import java.io.File;
+import java.lang.reflect.Constructor;
+import java.lang.reflect.Field;
 import java.lang.reflect.InvocationTargetException;
+import java.lang.reflect.Method;
+import java.lang.reflect.Modifier;
 import java.net.MalformedURLException;
 import java.net.URL;
 import java.net.URLClassLoader;
 import java.security.CodeSource;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
+import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 import java.util.WeakHashMap;
 
-import static org.codehaus.gmavenplus.util.ReflectionUtils.findMethod;
-import static org.codehaus.gmavenplus.util.ReflectionUtils.invokeStaticMethod;
-
 
 /**
  * Handles getting Groovy classes and version from the specified classpath.
+ * Inspired heavily by Spring's <a href="https://github.com/SpringSource/spring-framework/blob/master/spring-core/src/main/java/org/springframework/util/ReflectionUtils.java">ReflectionUtils</a>.
  *
+ * @author Juergen Hoeller
+ * @author Rob Harrop
+ * @author Rod Johnson
+ * @author Costin Leau
+ * @author Sam Brannen
+ * @author Chris Beams
  * @author Keegan Witt
- * @since 1.2
  */
 public class ClassWrangler {
 
     /**
-     * Class cache size
+     * Size for all caches.
      */
     protected static final int CACHE_SIZE = 256;
 
@@ -74,29 +83,94 @@ public class ClassWrangler {
     protected Log log;
 
     /**
-     * Creates a new ClassWrangler using the specified ClassLoader.
+     * Cache for {@link Class#getConstructors()}, allowing for fast iteration.
+     */
+    protected Map<Class<?>, Constructor[]> constructorsCache = Collections.synchronizedMap(new WeakHashMap<Class<?>, Constructor[]>(CACHE_SIZE));
+
+    /**
+     * Cache for {@link Class#getDeclaredConstructors()}, allowing for fast iteration.
+     */
+    protected Map<Class<?>, Constructor[]> declaredConstructorsCache = Collections.synchronizedMap(new WeakHashMap<Class<?>, Constructor[]>(CACHE_SIZE));
+
+    /**
+     * Cache for {@link Class#getDeclaredFields()}, allowing for fast iteration.
+     */
+    protected Map<Class<?>, Field[]> declaredFieldsCache = Collections.synchronizedMap(new WeakHashMap<Class<?>, Field[]>(CACHE_SIZE));
+
+    /**
+     * Cache for {@link Class#getDeclaredMethods()}, allowing for fast iteration.
+     */
+    protected Map<Class<?>, Method[]> declaredMethodsCache = Collections.synchronizedMap(new WeakHashMap<Class<?>, Method[]>(CACHE_SIZE));
+
+    /**
+     * Cache for {@link Class#getMethods()}, allowing for fast iteration.
+     */
+    protected Map<Class<?>, Method[]> methodsCache = Collections.synchronizedMap(new WeakHashMap<Class<?>, Method[]>(CACHE_SIZE));
+
+    /**
+     * Whether initialized (Plexus instantiates the ClassWrangler, but the ClassLoader isn't created until Mojo execution).
+     */
+    protected boolean initialized = false;
+
+    /**
+     * Constructor for use by Plexus
+     */
+    public ClassWrangler() { }
+
+    /**
+     * Returns the classloader used for loading classes.
+     *
+     * @return the classloader used for loading classes
+     */
+    public ClassLoader getClassLoader() {
+        return classLoader;
+    }
+
+    /**
+     * Initializes using the specified ClassLoader.
      *
      * @param classLoaderForLoading the ClassLoader to use to load classes
      * @param pluginLog the Maven log to use for logging
      */
-    public ClassWrangler(final ClassLoader classLoaderForLoading, final Log pluginLog) {
+    public void initialize(final ClassLoader classLoaderForLoading, final Log pluginLog) {
         log = pluginLog;
-        classLoader = classLoaderForLoading;
+        if (!initialized) {
+            classLoader = classLoaderForLoading;
+            initialized = true;
+        }
+        Thread.currentThread().setContextClassLoader(classLoader);
     }
 
     /**
-     * Creates a new ClassWrangler using a new ClassLoader, loaded with the
-     * items from the specified classpath.
+     * Initializes using a new ClassLoader, loaded with the items from the specified classpath.
      *
      * @param classpath the classpath to load the new ClassLoader with
      * @param pluginLog the Maven log to use for logging
-     * @throws MalformedURLException
      */
-    public ClassWrangler(final List classpath, final Log pluginLog) throws MalformedURLException {
-        log = pluginLog;
-        // create an isolated ClassLoader with all the appropriate project dependencies in it
-        classLoader = createNewClassLoader(classpath);
-        Thread.currentThread().setContextClassLoader(classLoader);
+    public void initialize(final List classpath, final Log pluginLog) {
+        try {
+            log = pluginLog;
+            if (!initialized) {
+                // create an isolated ClassLoader with all the appropriate project dependencies in it
+                classLoader = createNewClassLoader(classpath);
+                initialized = true;
+            } else {
+                /*
+                 * this is needed for additions to classpath (for example, to add the Java classes from the compiler
+                 * plugin, between when the classloader is created during stub generation, and Groovy class compilation.
+                 */
+                for (Object url : classpath) {
+                    invokeMethod(findMethod(URLClassLoader.class, "addURL", URL.class), classLoader, new File((String) url).toURI().toURL());
+                }
+            }
+            Thread.currentThread().setContextClassLoader(classLoader);
+        } catch (MalformedURLException e) {
+            throw new RuntimeException(e);
+        } catch (IllegalAccessException e) {
+            throw new RuntimeException(e);
+        } catch (InvocationTargetException e) {
+            throw new RuntimeException(e);
+        }
     }
 
     /**
@@ -181,53 +255,6 @@ public class ClassWrangler {
             log.error("Unable to determine Groovy version.  Is Groovy declared as a dependency?");
             return null;
         }
-    }
-
-    /**
-     * Determines whether the detected Groovy version is the specified version
-     * or newer.
-     *
-     * @param detectedVersion the detected Groovy version
-     * @param compareToVersion the version to compare the detected Groovy version to
-     * @return <code>true</code> if the detected Groovy version is the specified version or newer, <code>false</code> otherwise
-     */
-    public static boolean groovyAtLeast(Version detectedVersion, Version compareToVersion) {
-        return detectedVersion.compareTo(compareToVersion) >= 0;
-    }
-
-    /**
-     * Determines whether the detected Groovy version is the specified version.
-     *
-     * @param detectedVersion the detected Groovy version
-     * @param compareToVersion the version to compare the detected Groovy version to
-     * @return <code>true</code> if the detected Groovy version is the specified version, <code>false</code> otherwise
-     */
-    public static boolean groovyIs(Version detectedVersion, Version compareToVersion) {
-        return detectedVersion.compareTo(compareToVersion) == 0;
-    }
-
-    /**
-     * Determines whether the detected Groovy version is
-     * newer than the specified version.
-     *
-     * @param detectedVersion the detected Groovy version
-     * @param compareToVersion the version to compare the detected Groovy version to
-     * @return <code>true</code> if the detected Groovy version is newer than the specified version, <code>false</code> otherwise
-     */
-    public static boolean groovyNewerThan(Version detectedVersion, Version compareToVersion) {
-        return detectedVersion.compareTo(compareToVersion) > 0;
-    }
-
-    /**
-     * Determines whether the detected Groovy version is
-     * older than the specified version.
-     *
-     * @param detectedVersion the detected Groovy version
-     * @param compareToVersion the version to compare the detected Groovy version to
-     * @return <code>true</code> if the detected Groovy version is older than the specified version, <code>false</code> otherwise
-     */
-    public static boolean groovyOlderThan(Version detectedVersion, Version compareToVersion) {
-        return detectedVersion.compareTo(compareToVersion) < 0;
     }
 
     /**
@@ -335,13 +362,319 @@ public class ClassWrangler {
         return clazz;
     }
 
+    protected List<Method> findConcreteMethodsOnInterfaces(final Class<?> clazz) {
+        List<Method> result = null;
+        for (Class<?> ifc : clazz.getInterfaces()) {
+            for (Method ifcMethod : getMethods(ifc)) {
+                if (!Modifier.isAbstract(ifcMethod.getModifiers())) {
+                    if (result == null) {
+                        result = new LinkedList<Method>();
+                    }
+                    result.add(ifcMethod);
+                }
+            }
+        }
+        return result;
+    }
+
     /**
-     * Returns the classloader used for loading classes.
+     * Attempt to find a {@link Constructor} on the supplied class with the
+     * supplied parameter types. Searches all superclasses up to
+     * <code>Object</code>.
      *
-     * @return the classloader used for loading classes
+     * @param clazz The class to introspect
+     * @param paramTypes The parameter types of the method (may be <code>null</code> to indicate any signature)
+     * @return The Constructor object
      */
-    public ClassLoader getClassLoader() {
-        return classLoader;
+    public Constructor findConstructor(final Class<?> clazz, final Class<?>... paramTypes) {
+        if (clazz == null) {
+            throw new IllegalArgumentException("Class must not be null.");
+        }
+        Class<?> searchType = clazz;
+        while (searchType != null) {
+            Constructor[] constructors = searchType.isInterface() ? getConstructors(searchType) : getDeclaredConstructors(searchType);
+            for (Constructor constructor : constructors) {
+                if (paramTypes == null || Arrays.equals(paramTypes, constructor.getParameterTypes())) {
+                    return constructor;
+                }
+            }
+            searchType = searchType.getSuperclass();
+        }
+        throw new IllegalArgumentException("Unable to find constructor " + clazz.getName() + "(" + Arrays.toString(paramTypes).replaceAll("^\\[", "").replaceAll("\\]$", "").replaceAll("class ", "") + ").");
+    }
+
+    /**
+     * Attempt to find a {@link Field field} on the supplied {@link Class} with
+     * the supplied <code>name</code> and/or {@link Class type}. Searches all
+     * superclasses up to {@link Object}.
+     *
+     * @param clazz The class to introspect
+     * @param name The name of the field (may be <code>null</code> if type is specified)
+     * @param type The type of the field (may be <code>null</code> if name is specified)
+     * @return The corresponding Field object
+     */
+    public Field findField(final Class<?> clazz, final String name, final Class<?> type) {
+        if (clazz == null) {
+            throw new IllegalArgumentException("Class must not be null");
+        }
+        if (name == null && type == null) {
+            throw new IllegalArgumentException("Either name or type of the field must be specified.");
+        }
+        Class<?> searchType = clazz;
+        while (Object.class != searchType && searchType != null) {
+            Field[] fields = getDeclaredFields(searchType);
+            for (Field field : fields) {
+                if ((name == null || name.equals(field.getName())) && (type == null || type.equals(field.getType()))) {
+                    return field;
+                }
+            }
+            searchType = searchType.getSuperclass();
+        }
+        throw new IllegalArgumentException("Unable to find " + (type != null ? type.getName() : "") + " " + (name != null ? name : "") + ".");
+    }
+
+    /**
+     * Attempt to find a {@link Method} on the supplied class with the supplied
+     * name and parameter types. Searches all superclasses up to
+     * <code>Object</code>.
+     *
+     * @param clazz      The class to introspect
+     * @param name       The name of the method
+     * @param paramTypes The parameter types of the method
+     *                   (may be <code>null</code> to indicate any signature)
+     * @return The Method object
+     */
+    public Method findMethod(final Class<?> clazz, final String name, final Class<?>... paramTypes) {
+        if (clazz == null) {
+            throw new IllegalArgumentException("Class must not be null.");
+        }
+        if (name == null) {
+            throw new IllegalArgumentException("Method name must not be null.");
+        }
+        Class<?> searchType = clazz;
+        while (searchType != null) {
+            Method[] methods = searchType.isInterface() ? getMethods(searchType) : getDeclaredMethods(searchType);
+            for (Method method : methods) {
+                if (name.equals(method.getName()) && (paramTypes == null || Arrays.equals(paramTypes, method.getParameterTypes()))) {
+                    return method;
+                }
+            }
+            searchType = searchType.getSuperclass();
+        }
+        throw new IllegalArgumentException("Unable to find method " + clazz.getName() + "." + name + "(" + Arrays.toString(paramTypes).replaceAll("^\\[", "").replaceAll("\\]$", "").replaceAll("class ", "") + ").");
+    }
+
+    /**
+     * This variant retrieves {@link Class#getConstructors()} from a local cache
+     * in order to avoid the JVM's SecurityManager check and defensive array copying.
+     *
+     * @param clazz the class to introspect
+     * @return the cached array of constructors
+     * @see Class#getConstructors()
+     */
+    protected Constructor[] getConstructors(final Class<?> clazz) {
+        Constructor[] result = constructorsCache.get(clazz);
+        if (result == null) {
+            result  = clazz.getConstructors();
+            constructorsCache.put(clazz, result);
+        }
+        return result;
+    }
+
+    /**
+     * This variant retrieves {@link Class#getDeclaredConstructors()} from a local cache
+     * in order to avoid the JVM's SecurityManager check and defensive array copying.
+     *
+     * @param clazz the class to introspect
+     * @return the cached array of constructors
+     * @see Class#getDeclaredConstructors()
+     */
+    protected Constructor[] getDeclaredConstructors(final Class<?> clazz) {
+        Constructor[] result = declaredConstructorsCache.get(clazz);
+        if (result == null) {
+            result  = clazz.getDeclaredConstructors();
+            declaredConstructorsCache.put(clazz, result);
+        }
+        return result;
+    }
+
+    /**
+     * This variant retrieves {@link Class#getDeclaredFields()} from a local cache
+     * in order to avoid the JVM's SecurityManager check and defensive array copying.
+     *
+     * @param clazz the class to introspect
+     * @return the cached array of fields
+     * @see Class#getDeclaredFields()
+     */
+    protected Field[] getDeclaredFields(final Class<?> clazz) {
+        Field[] result = declaredFieldsCache.get(clazz);
+        if (result == null) {
+            result = clazz.getDeclaredFields();
+            declaredFieldsCache.put(clazz, result);
+        }
+        return result;
+    }
+
+    /**
+     * This variant retrieves {@link Class#getDeclaredMethods()} from a local cache
+     * in order to avoid the JVM's SecurityManager check and defensive array copying.
+     * In addition, it also includes Java 8 default methods from locally implemented
+     * interfaces, since those are effectively to be treated just like declared methods.
+     *
+     *  @param clazz the class to introspect
+     * @return the cached array of methods
+     * @see Class#getDeclaredMethods()
+     */
+    protected Method[] getDeclaredMethods(final Class<?> clazz) {
+        Method[] result = declaredMethodsCache.get(clazz);
+        if (result == null) {
+            Method[] declaredMethods = clazz.getDeclaredMethods();
+            List<Method> defaultMethods = findConcreteMethodsOnInterfaces(clazz);
+            if (defaultMethods != null) {
+                result = new Method[declaredMethods.length + defaultMethods.size()];
+                System.arraycopy(declaredMethods, 0, result, 0, declaredMethods.length);
+                int index = declaredMethods.length;
+                for (Method defaultMethod : defaultMethods) {
+                    result[index] = defaultMethod;
+                    index++;
+                }
+            } else {
+                result = declaredMethods;
+            }
+            declaredMethodsCache.put(clazz, result);
+        }
+        return result;
+    }
+
+    /**
+     * Find and return the specified value from the specified enum class.
+     *
+     * @param clazz The enum class to introspect
+     * @param valueName The name of the enum value to get
+     * @return The enum value
+     */
+    public Object getEnumValue(final Class<?> clazz, final String valueName) {
+        if (clazz.isEnum()) {
+            for (Object o : clazz.getEnumConstants()) {
+                if (o.toString().equals(valueName)) {
+                    return o;
+                }
+            }
+            throw new IllegalArgumentException("Unable to get an enum constant with that name.");
+        } else {
+            throw new IllegalArgumentException(clazz + " must be an enum.");
+        }
+    }
+
+    /**
+     * Get the field represented by the supplied {@link Field field object} on
+     * the specified {@link Object target object}. In accordance with
+     * {@link Field#get(Object)} semantics, the returned value is automatically
+     * wrapped if the underlying field has a primitive type.
+     *
+     * @param field The field to get
+     * @param target The target object from which to get the field
+     * @return The field's current value
+     * @throws IllegalAccessException when unable to access the specified field because access modifiers prevent it
+     */
+    public Object getField(final Field field, final Object target) throws IllegalAccessException {
+        field.setAccessible(true);
+        return field.get(target);
+    }
+
+    /**
+     * This variant retrieves {@link Class#getMethods()} from a local cache
+     * in order to avoid the JVM's SecurityManager check and defensive array copying.
+     *
+     * @param clazz the class to introspect
+     * @return the cached array of methods
+     * @see Class#getMethods()
+     */
+    protected Method[] getMethods(final Class<?> clazz) {
+        Method[] result = methodsCache.get(clazz);
+        if (result == null) {
+            result = clazz.getMethods();
+            methodsCache.put(clazz, result);
+        }
+        return result;
+    }
+
+    /**
+     * Get the field represented by the supplied {@link Field field object} on
+     * the specified {@link Object target object}. In accordance with
+     * {@link Field#get(Object)} semantics, the returned value is automatically
+     * wrapped if the underlying field has a primitive type.
+     *
+     * @param field The field to get
+     * @return The field's current value
+     * @throws IllegalAccessException when unable to access the specified field because access modifiers prevent it
+     */
+    public Object getStaticField(final Field field) throws IllegalAccessException {
+        if (!Modifier.isStatic(field.getModifiers())) {
+            throw new IllegalArgumentException("Field must be static.");
+        }
+        return getField(field, null);
+    }
+
+    /**
+     * Invoke the specified {@link Constructor}  with the supplied arguments.
+     *
+     * @param constructor The method to invoke
+     * @param args The invocation arguments (may be <code>null</code>)
+     * @return The invocation result, if any
+     * @throws IllegalAccessException when unable to access the specified constructor because access modifiers prevent it
+     * @throws java.lang.reflect.InvocationTargetException when a reflection invocation fails
+     * @throws InstantiationException when an instantiation fails
+     */
+    public Object invokeConstructor(final Constructor constructor, final Object... args) throws InvocationTargetException, IllegalAccessException, InstantiationException {
+        if (constructor == null) {
+            throw new IllegalArgumentException("Constructor must not be null.");
+        }
+        constructor.setAccessible(true);
+        return constructor.newInstance(args);
+    }
+
+    /**
+     * Invoke the specified {@link Method} against the supplied target object
+     * with the supplied arguments. The target object can be <code>null</code>
+     * when invoking a static {@link Method}.
+     *
+     * @param method The method to invoke
+     * @param target The target object to invoke the method on
+     * @param args The invocation arguments (may be <code>null</code>)
+     * @return The invocation result, if any
+     * @throws IllegalAccessException when unable to access the specified method because access modifiers prevent it
+     * @throws java.lang.reflect.InvocationTargetException when a reflection invocation fails
+     */
+    public Object invokeMethod(final Method method, final Object target, final Object... args) throws InvocationTargetException, IllegalAccessException {
+        if (method == null) {
+            throw new IllegalArgumentException("Method must not be null.");
+        }
+        if (target == null) {
+            throw new IllegalArgumentException("Object must not be null.");
+        }
+        method.setAccessible(true);
+        return method.invoke(target, args);
+    }
+
+    /**
+     * Invoke the specified static {@link Method} with the supplied arguments.
+     *
+     * @param method The method to invoke
+     * @param args The invocation arguments (may be <code>null</code>)
+     * @return The invocation result, if any
+     * @throws IllegalAccessException when unable to access the specified method because access modifiers prevent it
+     * @throws java.lang.reflect.InvocationTargetException when a reflection invocation fails
+     */
+    public Object invokeStaticMethod(final Method method, final Object... args) throws InvocationTargetException, IllegalAccessException {
+        if (method == null) {
+            throw new IllegalArgumentException("Method must not be null.");
+        }
+        if (!Modifier.isStatic(method.getModifiers())) {
+            throw new IllegalArgumentException("Method must be static.");
+        }
+        method.setAccessible(true);
+        return method.invoke(null, args);
     }
 
 }

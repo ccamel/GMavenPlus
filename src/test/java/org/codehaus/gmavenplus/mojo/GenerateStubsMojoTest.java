@@ -34,7 +34,6 @@ import java.util.HashSet;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 import static org.mockito.Matchers.any;
-import static org.mockito.Matchers.anyList;
 import static org.mockito.Matchers.anySet;
 import static org.mockito.Mockito.*;
 
@@ -63,62 +62,62 @@ public class GenerateStubsMojoTest {
     @Test
     @SuppressWarnings("unchecked")
     public void testCallsExpectedMethods() throws Exception {
-        doReturn(true).when(generateStubsMojo).groovyVersionSupportsAction();
-        doNothing().when(generateStubsMojo).doStubGeneration(anySet(), anyList(), any(File.class));
+        doReturn(true).when(generateStubsMojo).groovyVersionSupportsAction(any(ClassWrangler.class));
+        doNothing().when(generateStubsMojo).doStubGeneration(anySet(), any(File.class));
         generateStubsMojo.execute();
-        verify(generateStubsMojo, times(1)).doStubGeneration(anySet(), anyList(), any(File.class));
+        verify(generateStubsMojo, times(1)).doStubGeneration(anySet(), any(File.class));
     }
 
     @Test (expected = MojoExecutionException.class)
     @SuppressWarnings("unchecked")
     public void testClassNotFoundExceptionThrowsMojoExecutionException() throws Exception {
-        doReturn(true).when(generateStubsMojo).groovyVersionSupportsAction();
-        doThrow(new ClassNotFoundException(INTENTIONAL_EXCEPTION_MESSAGE)).when(generateStubsMojo).doStubGeneration(anySet(), anyList(), any(File.class));
+        doReturn(true).when(generateStubsMojo).groovyVersionSupportsAction(any(ClassWrangler.class));
+        doThrow(new ClassNotFoundException(INTENTIONAL_EXCEPTION_MESSAGE)).when(generateStubsMojo).doStubGeneration(anySet(), any(File.class));
         generateStubsMojo.execute();
     }
 
     @Test (expected = MojoExecutionException.class)
     @SuppressWarnings("unchecked")
     public void testInvocationTargetExceptionThrowsMojoExecutionException() throws Exception {
-        doReturn(true).when(generateStubsMojo).groovyVersionSupportsAction();
-        doThrow(new InvocationTargetException(mock(Exception.class), INTENTIONAL_EXCEPTION_MESSAGE)).when(generateStubsMojo).doStubGeneration(anySet(), anyList(), any(File.class));
+        doReturn(true).when(generateStubsMojo).groovyVersionSupportsAction(any(ClassWrangler.class));
+        doThrow(new InvocationTargetException(mock(Exception.class), INTENTIONAL_EXCEPTION_MESSAGE)).when(generateStubsMojo).doStubGeneration(anySet(), any(File.class));
         generateStubsMojo.execute();
     }
 
     @Test (expected = MojoExecutionException.class)
     @SuppressWarnings("unchecked")
     public void testInstantiationExceptionThrowsMojoExecutionException() throws Exception {
-        doReturn(true).when(generateStubsMojo).groovyVersionSupportsAction();
-        doThrow(new InstantiationException(INTENTIONAL_EXCEPTION_MESSAGE)).when(generateStubsMojo).doStubGeneration(anySet(), anyList(), any(File.class));
+        doReturn(true).when(generateStubsMojo).groovyVersionSupportsAction(any(ClassWrangler.class));
+        doThrow(new InstantiationException(INTENTIONAL_EXCEPTION_MESSAGE)).when(generateStubsMojo).doStubGeneration(anySet(), any(File.class));
         generateStubsMojo.execute();
     }
 
     @Test (expected = MojoExecutionException.class)
     @SuppressWarnings("unchecked")
     public void testIllegalAccessExceptionThrowsMojoExecutionException() throws Exception {
-        doReturn(true).when(generateStubsMojo).groovyVersionSupportsAction();
-        doThrow(new IllegalAccessException(INTENTIONAL_EXCEPTION_MESSAGE)).when(generateStubsMojo).doStubGeneration(anySet(), anyList(), any(File.class));
+        doReturn(true).when(generateStubsMojo).groovyVersionSupportsAction(any(ClassWrangler.class));
+        doThrow(new IllegalAccessException(INTENTIONAL_EXCEPTION_MESSAGE)).when(generateStubsMojo).doStubGeneration(anySet(), any(File.class));
         generateStubsMojo.execute();
     }
 
     @Test (expected = MojoExecutionException.class)
     @SuppressWarnings("unchecked")
     public void testMalformedURLExceptionThrowsMojoExecutionException() throws Exception {
-        doReturn(true).when(generateStubsMojo).groovyVersionSupportsAction();
-        doThrow(new MalformedURLException(INTENTIONAL_EXCEPTION_MESSAGE)).when(generateStubsMojo).doStubGeneration(anySet(), anyList(), any(File.class));
+        doReturn(true).when(generateStubsMojo).groovyVersionSupportsAction(any(ClassWrangler.class));
+        doThrow(new MalformedURLException(INTENTIONAL_EXCEPTION_MESSAGE)).when(generateStubsMojo).doStubGeneration(anySet(), any(File.class));
         generateStubsMojo.execute();
     }
 
     @Test
     public void testGroovyVersionSupportsActionTrue() {
         doReturn(Version.parseFromString("1.5.0")).when(generateStubsMojo.classWrangler).getGroovyVersion();
-        assertTrue(generateStubsMojo.groovyVersionSupportsAction());
+        assertTrue(generateStubsMojo.groovyVersionSupportsAction(generateStubsMojo.classWrangler));
     }
 
     @Test
     public void testGroovyVersionSupportsActionFalse() {
         doReturn(Version.parseFromString("1.0")).when(generateStubsMojo.classWrangler).getGroovyVersion();
-        assertFalse(generateStubsMojo.groovyVersionSupportsAction());
+        assertFalse(generateStubsMojo.groovyVersionSupportsAction(generateStubsMojo.classWrangler));
     }
 
 }

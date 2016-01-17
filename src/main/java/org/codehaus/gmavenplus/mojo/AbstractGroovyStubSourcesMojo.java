@@ -20,9 +20,11 @@ import org.apache.maven.shared.model.fileset.FileSet;
 import org.apache.maven.shared.model.fileset.util.FileSetManager;
 
 import java.io.File;
-import java.util.Arrays;
+import java.util.Collections;
 import java.util.HashSet;
 import java.util.Set;
+
+import static java.util.Collections.singletonList;
 
 
 /**
@@ -58,7 +60,7 @@ public abstract class AbstractGroovyStubSourcesMojo extends AbstractGroovySource
 
         FileSet fileSet = new FileSet();
         fileSet.setDirectory(stubsOutputDirectory.getAbsolutePath());
-        fileSet.setIncludes(Arrays.asList(JAVA_SOURCES_PATTERN));
+        fileSet.setIncludes(singletonList(JAVA_SOURCES_PATTERN));
         for (String file : fileSetManager.getIncludedFiles(fileSet)) {
             files.add(new File(stubsOutputDirectory, file));
         }
@@ -77,7 +79,7 @@ public abstract class AbstractGroovyStubSourcesMojo extends AbstractGroovySource
 
         FileSet fileSet = new FileSet();
         fileSet.setDirectory(testStubsOutputDirectory.getAbsolutePath());
-        fileSet.setIncludes(Arrays.asList(JAVA_SOURCES_PATTERN));
+        fileSet.setIncludes(singletonList(JAVA_SOURCES_PATTERN));
         for (String file : fileSetManager.getIncludedFiles(fileSet)) {
             files.add(new File(testStubsOutputDirectory, file));
         }

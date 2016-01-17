@@ -34,7 +34,6 @@ import java.util.HashSet;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 import static org.mockito.Matchers.any;
-import static org.mockito.Matchers.anyList;
 import static org.mockito.Matchers.anySet;
 import static org.mockito.Mockito.*;
 
@@ -63,71 +62,71 @@ public class GenerateTestStubsMojoTest {
     @Test
     @SuppressWarnings("unchecked")
     public void testCallsExpectedMethods() throws Exception {
-        doReturn(true).when(generateTestStubsMojo).groovyVersionSupportsAction();
-        doNothing().when(generateTestStubsMojo).doStubGeneration(anySet(), anyList(), any(File.class));
+        doReturn(true).when(generateTestStubsMojo).groovyVersionSupportsAction(any(ClassWrangler.class));
+        doNothing().when(generateTestStubsMojo).doStubGeneration(anySet(), any(File.class));
         generateTestStubsMojo.execute();
-        verify(generateTestStubsMojo, times(1)).doStubGeneration(anySet(), anyList(), any(File.class));
+        verify(generateTestStubsMojo, times(1)).doStubGeneration(anySet(), any(File.class));
     }
 
     @Test
     @SuppressWarnings("unchecked")
     public void testSkipped() throws Exception {
-        doReturn(true).when(generateTestStubsMojo).groovyVersionSupportsAction();
+        doReturn(true).when(generateTestStubsMojo).groovyVersionSupportsAction(any(ClassWrangler.class));
         generateTestStubsMojo.skipTests = true;
         generateTestStubsMojo.execute();
-        verify(generateTestStubsMojo, never()).doStubGeneration(anySet(), anyList(), any(File.class));
+        verify(generateTestStubsMojo, never()).doStubGeneration(anySet(), any(File.class));
     }
 
     @Test (expected = MojoExecutionException.class)
     @SuppressWarnings("unchecked")
     public void testClassNotFoundExceptionThrowsMojoExecutionException() throws Exception {
-        doReturn(true).when(generateTestStubsMojo).groovyVersionSupportsAction();
-        doThrow(new ClassNotFoundException(INTENTIONAL_EXCEPTION_MESSAGE)).when(generateTestStubsMojo).doStubGeneration(anySet(), anyList(), any(File.class));
+        doReturn(true).when(generateTestStubsMojo).groovyVersionSupportsAction(any(ClassWrangler.class));
+        doThrow(new ClassNotFoundException(INTENTIONAL_EXCEPTION_MESSAGE)).when(generateTestStubsMojo).doStubGeneration(anySet(), any(File.class));
         generateTestStubsMojo.execute();
     }
 
     @Test (expected = MojoExecutionException.class)
     @SuppressWarnings("unchecked")
     public void testInvocationTargetExceptionThrowsMojoExecutionException() throws Exception {
-        doReturn(true).when(generateTestStubsMojo).groovyVersionSupportsAction();
-        doThrow(new InvocationTargetException(mock(Exception.class), INTENTIONAL_EXCEPTION_MESSAGE)).when(generateTestStubsMojo).doStubGeneration(anySet(), anyList(), any(File.class));
+        doReturn(true).when(generateTestStubsMojo).groovyVersionSupportsAction(any(ClassWrangler.class));
+        doThrow(new InvocationTargetException(mock(Exception.class), INTENTIONAL_EXCEPTION_MESSAGE)).when(generateTestStubsMojo).doStubGeneration(anySet(), any(File.class));
         generateTestStubsMojo.execute();
     }
 
     @Test (expected = MojoExecutionException.class)
     @SuppressWarnings("unchecked")
     public void testInstantiationExceptionThrowsMojoExecutionException() throws Exception {
-        doReturn(true).when(generateTestStubsMojo).groovyVersionSupportsAction();
-        doThrow(new InstantiationException(INTENTIONAL_EXCEPTION_MESSAGE)).when(generateTestStubsMojo).doStubGeneration(anySet(), anyList(), any(File.class));
+        doReturn(true).when(generateTestStubsMojo).groovyVersionSupportsAction(any(ClassWrangler.class));
+        doThrow(new InstantiationException(INTENTIONAL_EXCEPTION_MESSAGE)).when(generateTestStubsMojo).doStubGeneration(anySet(), any(File.class));
         generateTestStubsMojo.execute();
     }
 
     @Test (expected = MojoExecutionException.class)
     @SuppressWarnings("unchecked")
     public void testIllegalAccessExceptionThrowsMojoExecutionException() throws Exception {
-        doReturn(true).when(generateTestStubsMojo).groovyVersionSupportsAction();
-        doThrow(new IllegalAccessException(INTENTIONAL_EXCEPTION_MESSAGE)).when(generateTestStubsMojo).doStubGeneration(anySet(), anyList(), any(File.class));
+        doReturn(true).when(generateTestStubsMojo).groovyVersionSupportsAction(any(ClassWrangler.class));
+        doThrow(new IllegalAccessException(INTENTIONAL_EXCEPTION_MESSAGE)).when(generateTestStubsMojo).doStubGeneration(anySet(), any(File.class));
         generateTestStubsMojo.execute();
     }
 
     @Test (expected = MojoExecutionException.class)
     @SuppressWarnings("unchecked")
     public void testMalformedURLExceptionThrowsMojoExecutionException() throws Exception {
-        doReturn(true).when(generateTestStubsMojo).groovyVersionSupportsAction();
-        doThrow(new MalformedURLException(INTENTIONAL_EXCEPTION_MESSAGE)).when(generateTestStubsMojo).doStubGeneration(anySet(), anyList(), any(File.class));
+        doReturn(true).when(generateTestStubsMojo).groovyVersionSupportsAction(any(ClassWrangler.class));
+        doThrow(new MalformedURLException(INTENTIONAL_EXCEPTION_MESSAGE)).when(generateTestStubsMojo).doStubGeneration(anySet(), any(File.class));
         generateTestStubsMojo.execute();
     }
 
     @Test
     public void testGroovyVersionSupportsActionTrue() {
         doReturn(Version.parseFromString("1.5.0")).when(generateTestStubsMojo.classWrangler).getGroovyVersion();
-        assertTrue(generateTestStubsMojo.groovyVersionSupportsAction());
+        assertTrue(generateTestStubsMojo.groovyVersionSupportsAction(generateTestStubsMojo.classWrangler));
     }
 
     @Test
     public void testGroovyVersionSupportsActionFalse() {
         doReturn(Version.parseFromString("1.0")).when(generateTestStubsMojo.classWrangler).getGroovyVersion();
-        assertFalse(generateTestStubsMojo.groovyVersionSupportsAction());
+        assertFalse(generateTestStubsMojo.groovyVersionSupportsAction(generateTestStubsMojo.classWrangler));
     }
 
 }

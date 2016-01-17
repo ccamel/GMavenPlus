@@ -115,13 +115,13 @@ public class AbstractGenerateStubsMojoTest {
     @Test
     public void testGroovyVersionSupportsActionTrue() {
         testMojo = new TestMojo("1.8.2");
-        assertTrue(testMojo.groovyVersionSupportsAction());
+        assertTrue(testMojo.groovyVersionSupportsAction(testMojo.classWrangler));
     }
 
     @Test
     public void testGroovyVersionSupportsActionFalse() {
         testMojo = new TestMojo("1.8.1");
-        assertFalse(testMojo.groovyVersionSupportsAction());
+        assertFalse(testMojo.groovyVersionSupportsAction(testMojo.classWrangler));
     }
 
     @Test
@@ -135,6 +135,7 @@ public class AbstractGenerateStubsMojoTest {
 
     public class TestMojo extends AbstractGenerateStubsMojo {
         private String overrideGroovyVersion = minGroovyVersion.toString();
+        public ClassWrangler classWrangler;
 
         protected TestMojo() {
             minGroovyVersion = new Version(1, 8, 2);

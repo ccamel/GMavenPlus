@@ -56,11 +56,6 @@ public abstract class AbstractGroovyMojo extends AbstractMojo {
      */
     protected static final Version GROOVY_1_5_0 = new Version(1, 5, 0);
 
-    /**
-     * The wrangler to use to work with Groovy classes, classpaths, classLoaders, and versions.
-     */
-    protected ClassWrangler classWrangler;
-
     // note that all supported parameter expressions can be found here: https://git-wip-us.apache.org/repos/asf?p=maven.git;a=blob;f=maven-core/src/main/java/org/apache/maven/plugin/PluginParameterExpressionEvaluator.java;hb=HEAD
 
     /**
@@ -155,53 +150,58 @@ public abstract class AbstractGroovyMojo extends AbstractMojo {
     /**
      * Determines whether this mojo can be run with the version of Groovy supplied.
      *
+     * @param classWrangler the ClassWrangler to use to access Groovy classes
      * @return <code>true</code> only if the version of Groovy supports this mojo.
      */
-    protected boolean groovyVersionSupportsAction() {
-        return classWrangler.getGroovyVersion() != null && groovyAtLeast(minGroovyVersion);
+    protected boolean groovyVersionSupportsAction(final ClassWrangler classWrangler) {
+        return classWrangler.getGroovyVersion() != null && groovyAtLeast(classWrangler, minGroovyVersion);
     }
 
     /**
      * Determines whether the detected Groovy version is the specified version
      * or newer.
      *
+     * @param classWrangler the ClassWrangler to use to access Groovy classes
      * @param version the version to compare the detected Groovy version to
      * @return <code>true</code> if the detected Groovy version is the specified version or newer, <code>false</code> otherwise
      */
-    protected boolean groovyAtLeast(Version version) {
-        return ClassWrangler.groovyAtLeast(classWrangler.getGroovyVersion(), version);
+    protected boolean groovyAtLeast(final ClassWrangler classWrangler, final Version version) {
+        return classWrangler.getGroovyVersion().compareTo(version) >= 0;
     }
 
     /**
      * Determines whether the detected Groovy version is the specified version.
      *
+     * @param classWrangler the ClassWrangler to use to access Groovy classes
      * @param version the version to compare the detected Groovy version to
      * @return <code>true</code> if the detected Groovy version is the specified version, <code>false</code> otherwise
      */
-    protected boolean groovyIs(Version version) {
-        return ClassWrangler.groovyIs(classWrangler.getGroovyVersion(), version);
+    protected boolean groovyIs(final ClassWrangler classWrangler, final Version version) {
+        return classWrangler.getGroovyVersion().compareTo(version) == 0;
     }
 
     /**
      * Determines whether the detected Groovy version is
      * newer than the specified version.
      *
+     * @param classWrangler the ClassWrangler to use to access Groovy classes
      * @param version the version to compare the detected Groovy version to
      * @return <code>true</code> if the detected Groovy version is newer than the specified version, <code>false</code> otherwise
      */
-    protected boolean groovyNewerThan(Version version) {
-        return ClassWrangler.groovyNewerThan(classWrangler.getGroovyVersion(), version);
+    protected boolean groovyNewerThan(final ClassWrangler classWrangler, final Version version) {
+        return classWrangler.getGroovyVersion().compareTo(version) > 0;
     }
 
     /**
      * Determines whether the detected Groovy version is
      * older than the specified version.
      *
+     * @param classWrangler the ClassWrangler to use to access Groovy classes
      * @param version the version to compare the detected Groovy version to
      * @return <code>true</code> if the detected Groovy version is older than the specified version, <code>false</code> otherwise
      */
-    protected boolean groovyOlderThan(Version version) {
-        return ClassWrangler.groovyOlderThan(classWrangler.getGroovyVersion(), version);
+    protected boolean groovyOlderThan(final ClassWrangler classWrangler, final Version version) {
+        return classWrangler.getGroovyVersion().compareTo(version) < 0;
     }
 
 }

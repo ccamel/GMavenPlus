@@ -30,13 +30,13 @@ import org.mockito.Mock;
 import org.mockito.MockitoAnnotations;
 import org.mockito.Spy;
 
+import java.lang.reflect.Constructor;
 import java.util.List;
 import java.util.Properties;
 
 import static org.junit.Assert.assertNotNull;
 import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.anyListOf;
-import static org.mockito.Matchers.anyString;
 import static org.mockito.Matchers.eq;
 import static org.mockito.Mockito.*;
 
@@ -70,12 +70,12 @@ public class AbstractToolsMojoTest {
         testMojo.pluginArtifacts = pluginArtifacts;
         testMojo.mojoExecution = mojoExecution;
         testMojo.classWrangler = classWrangler;
-        doReturn(AntBuilder.class).when(classWrangler).getClass(anyString());
+        doReturn(mock(AntBuilder.class)).when(classWrangler).invokeConstructor(any(Constructor.class));
     }
 
     @Test
     public void testInitializeProperties() {
-        testMojo.initializeProperties();
+        testMojo.initializeProperties(testMojo.classWrangler);
 
         assertNotNull(testMojo.properties.get("project"));
         assertNotNull(testMojo.properties.get("session"));
@@ -90,7 +90,7 @@ public class AbstractToolsMojoTest {
         testMojo.pluginArtifacts = null;
         testMojo.mojoExecution = mojoExecution;
 
-        testMojo.initializeProperties();
+        testMojo.initializeProperties(testMojo.classWrangler);
 
         verify(properties, never()).put(eq("project"), any(MavenProject.class));
         verify(properties, never()).put(eq("session"), any(MavenSession.class));
@@ -102,8 +102,8 @@ public class AbstractToolsMojoTest {
     public void testInitializePropertiesAlreadyInProps() {
         testMojo.properties = properties;
 
-        testMojo.initializeProperties();
-        testMojo.initializeProperties();
+        testMojo.initializeProperties(testMojo.classWrangler);
+        testMojo.initializeProperties(testMojo.classWrangler);
 
         verify(properties, times(1)).put(eq("project"), any(MavenProject.class));
         verify(properties, times(1)).put(eq("session"), any(MavenSession.class));
@@ -112,6 +112,8 @@ public class AbstractToolsMojoTest {
     }
 
     public class TestMojo extends AbstractToolsMojo {
+        public ClassWrangler classWrangler;
+
         public void execute() throws MojoExecutionException, MojoFailureException { }
     }
 

@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<plexus>
+  <components>
+    <component>
+      <role-hint>ClassWrangler-Compile</role-hint>
+      <role>org.codehaus.gmavenplus.util.ClassWrangler</role>
+      <implementation>org.codehaus.gmavenplus.util.ClassWrangler</implementation>
+      <instantiation-strategy>singleton</instantiation-strategy>
+    </component>
+    <component>
+      <role-hint>ClassWrangler-Test</role-hint>
+      <role>org.codehaus.gmavenplus.util.ClassWrangler</role>
+      <implementation>org.codehaus.gmavenplus.util.ClassWrangler</implementation>
+      <instantiation-strategy>singleton</instantiation-strategy>
+    </component>
+    <component>
+      <role-hint>ClassWrangler-Runtime</role-hint>
+      <role>org.codehaus.gmavenplus.util.ClassWrangler</role>
+      <implementation>org.codehaus.gmavenplus.util.ClassWrangler</implementation>
+      <instantiation-strategy>singleton</instantiation-strategy>
+    </component>
+    <component>
+      <role-hint>ClassWrangler-Plugin</role-hint>
+      <role>org.codehaus.gmavenplus.util.ClassWrangler</role>
+      <implementation>org.codehaus.gmavenplus.util.ClassWrangler</implementation>
+      <instantiation-strategy>singleton</instantiation-strategy>
+    </component>
+  </components>
+</plexus>

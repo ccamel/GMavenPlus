@@ -53,16 +53,16 @@ public class GenerateStubsMojo extends AbstractGenerateStubsMojo {
      */
     public void execute() throws MojoExecutionException, MojoFailureException {
         minGroovyVersion = GROOVY_1_8_2;
-
         try {
             try {
                 getLog().debug("Project compile classpath:\n" + project.getCompileClasspathElements());
             } catch (DependencyResolutionRequiredException e) {
                 getLog().warn("Unable to log project compile classpath", e);
             }
-
-            doStubGeneration(getSources(), project.getCompileClasspathElements(), stubsOutputDirectory);
+            classWrangler.initialize(project.getCompileClasspathElements(), getLog());
+            doStubGeneration(getSources(), stubsOutputDirectory);
             resetStubModifiedDates(getStubs());
+            getLog().info("Generated " + getStubs().size() + " stub" + (getStubs().size() > 1 || getStubs().size() == 0 ? "s" : "") + ".");
 
             // add stubs to project source so the Maven Compiler Plugin can find them
             project.addCompileSourceRoot(stubsOutputDirectory.getAbsolutePath());

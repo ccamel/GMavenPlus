@@ -25,13 +25,6 @@ import org.codehaus.gmavenplus.util.NoExitSecurityManager;
 import java.lang.reflect.InvocationTargetException;
 import java.util.Set;
 
-import static org.codehaus.gmavenplus.util.ReflectionUtils.findConstructor;
-import static org.codehaus.gmavenplus.util.ReflectionUtils.findField;
-import static org.codehaus.gmavenplus.util.ReflectionUtils.findMethod;
-import static org.codehaus.gmavenplus.util.ReflectionUtils.getField;
-import static org.codehaus.gmavenplus.util.ReflectionUtils.invokeConstructor;
-import static org.codehaus.gmavenplus.util.ReflectionUtils.invokeMethod;
-
 
 /**
  * Launches a Groovy console window bound to the current project.
@@ -50,13 +43,20 @@ import static org.codehaus.gmavenplus.util.ReflectionUtils.invokeMethod;
 public class ConsoleMojo extends AbstractToolsMojo {
 
     /**
+     * The ClassWrangler to use to work with Groovy classes.
+     *
+     * @component role-hint="ClassWrangler-Plugin"
+     */
+    protected ClassWrangler classWrangler;
+
+    /**
      * Executes this mojo.
      *
      * @throws MojoExecutionException If an unexpected problem occurs. Throwing this exception causes a "BUILD ERROR" message to be displayed
      * @throws MojoFailureException If an expected problem (such as an invocation failure) occurs. Throwing this exception causes a "BUILD FAILURE" message to be displayed
      */
     public void execute() throws MojoExecutionException, MojoFailureException {
-        classWrangler = new ClassWrangler(Thread.currentThread().getContextClassLoader(), getLog());
+        classWrangler.initialize(Thread.currentThread().getContextClassLoader(), getLog());
 
         try {
             getLog().debug("Project test classpath:\n" + project.getTestClasspathElements());
@@ -66,8 +66,7 @@ public class ConsoleMojo extends AbstractToolsMojo {
         logPluginClasspath();
         classWrangler.logGroovyVersion(mojoExecution.getMojoDescriptor().getGoal());
 
-        if (groovyVersionSupportsAction()) {
-
+        if (groovyVersionSupportsAction(classWrangler)) {
             final SecurityManager sm = System.getSecurityManager();
             try {
                 if (!allowSystemExits) {
@@ -79,13 +78,13 @@ public class ConsoleMojo extends AbstractToolsMojo {
                 Class<?> bindingClass = classWrangler.getClass("groovy.lang.Binding");
 
                 // create console to run
-                Object console = setupConsole(consoleClass, bindingClass);
+                Object console = setupConsole(classWrangler, consoleClass, bindingClass);
 
                 // run the console
-                invokeMethod(findMethod(consoleClass, "run"), console);
+                classWrangler.invokeMethod(classWrangler.findMethod(consoleClass, "run"), console);
 
                 // TODO: for some reason instantiating AntBuilder before calling run() causes its stdout and stderr streams to not be captured by the Console
-                bindAntBuilder(consoleClass, bindingClass, console);
+                bindAntBuilder(classWrangler, consoleClass, bindingClass, console);
 
                 // wait for console to be closed
                 Set<Thread> threadSet = Thread.getAllStackTraces().keySet();
@@ -131,6 +130,7 @@ public class ConsoleMojo extends AbstractToolsMojo {
     /**
      * Binds a new AntBuilder to the project properties.
      *
+     * @param classWrangler the ClassWrangler to use to access Groovy classes
      * @param consoleClass the groovy.ui.Console class to use
      * @param bindingClass the groovy.lang.Binding class to use
      * @param console the groovy.ui.Console object to use
@@ -139,14 +139,14 @@ public class ConsoleMojo extends AbstractToolsMojo {
      * @throws InvocationTargetException
      * @throws InstantiationException
      */
-    protected void bindAntBuilder(Class<?> consoleClass, Class<?> bindingClass, Object console) throws ClassNotFoundException, IllegalAccessException, InvocationTargetException, InstantiationException {
+    protected void bindAntBuilder(final ClassWrangler classWrangler, final Class<?> consoleClass, final Class<?> bindingClass, final Object console) throws ClassNotFoundException, IllegalAccessException, InvocationTargetException, InstantiationException {
         if (properties.containsKey("ant")) {
             Class<?> groovyShellClass = classWrangler.getClass("groovy.lang.GroovyShell");
-            Object shell = getField(findField(consoleClass, "shell", groovyShellClass), console);
-            Object binding = invokeMethod(findMethod(groovyShellClass, "getContext"), shell);
-            Object antBuilder = invokeConstructor(findConstructor(classWrangler.getClass("groovy.util.AntBuilder")));
+            Object shell = classWrangler.getField(classWrangler.findField(consoleClass, "shell", groovyShellClass), console);
+            Object binding = classWrangler.invokeMethod(classWrangler.findMethod(groovyShellClass, "getContext"), shell);
+            Object antBuilder = classWrangler.invokeConstructor(classWrangler.findConstructor(classWrangler.getClass("groovy.util.AntBuilder")));
             if (bindPropertiesToSeparateVariables) {
-                invokeMethod(findMethod(bindingClass, "setVariable", String.class, Object.class), binding, "ant", antBuilder);
+                classWrangler.invokeMethod(classWrangler.findMethod(bindingClass, "setVariable", String.class, Object.class), binding, "ant", antBuilder);
             } else {
                 properties.put("ant", antBuilder);
             }
@@ -156,6 +156,7 @@ public class ConsoleMojo extends AbstractToolsMojo {
     /**
      * Instantiates a Groovy Console.
      *
+     * @param classWrangler the ClassWrangler to use to access Groovy classes
      * @param consoleClass the Console class
      * @param bindingClass the Binding class
      * @return the instantiated Console
@@ -163,18 +164,18 @@ public class ConsoleMojo extends AbstractToolsMojo {
      * @throws IllegalAccessException when a method needed for creating a console cannot be accessed
      * @throws InvocationTargetException when a reflection invocation needed for creating a console cannot be completed
      */
-    protected Object setupConsole(final Class<?> consoleClass, final Class<?> bindingClass) throws InvocationTargetException, IllegalAccessException, InstantiationException {
-        Object binding = invokeConstructor(findConstructor(bindingClass));
-        initializeProperties();
+    protected Object setupConsole(final ClassWrangler classWrangler, final Class<?> consoleClass, final Class<?> bindingClass) throws InvocationTargetException, IllegalAccessException, InstantiationException {
+        Object binding = classWrangler.invokeConstructor(classWrangler.findConstructor(bindingClass));
+        initializeProperties(classWrangler);
         if (bindPropertiesToSeparateVariables) {
             for (Object k : properties.keySet()) {
-                invokeMethod(findMethod(bindingClass, "setVariable", String.class, Object.class), binding, k, properties.get(k));
+                classWrangler.invokeMethod(classWrangler.findMethod(bindingClass, "setVariable", String.class, Object.class), binding, k, properties.get(k));
             }
         } else {
-            invokeMethod(findMethod(bindingClass, "setVariable", String.class, Object.class), binding, "properties", properties);
+            classWrangler.invokeMethod(classWrangler.findMethod(bindingClass, "setVariable", String.class, Object.class), binding, "properties", properties);
         }
 
-        return invokeConstructor(findConstructor(consoleClass, ClassLoader.class, bindingClass), Thread.currentThread().getContextClassLoader(), binding);
+        return classWrangler.invokeConstructor(classWrangler.findConstructor(consoleClass, ClassLoader.class, bindingClass), Thread.currentThread().getContextClassLoader(), binding);
     }
 
 }

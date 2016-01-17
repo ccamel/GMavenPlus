@@ -27,8 +27,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
-import static org.codehaus.gmavenplus.util.ReflectionUtils.*;
-
 
 /**
  * The base compile mojo, which all compile mojos extend.
@@ -159,8 +157,8 @@ public abstract class AbstractCompileMojo extends AbstractGroovySourcesMojo {
     /**
      * Performs compilation of compile mojos.
      *
+     * @param classWrangler the ClassWrangler to use to access Groovy classes
      * @param sources the sources to compile
-     * @param classpath the classpath to use for compilation
      * @param compileOutputDirectory the directory to write the compiled class files to
      * @throws ClassNotFoundException when a class needed for compilation cannot be found
      * @throws InstantiationException when a class needed for compilation cannot be instantiated
@@ -169,10 +167,8 @@ public abstract class AbstractCompileMojo extends AbstractGroovySourcesMojo {
      * @throws MalformedURLException when a classpath element provides a malformed URL
      */
     @SuppressWarnings("unchecked")
-    protected synchronized void doCompile(final Set<File> sources, final List classpath, final File compileOutputDirectory)
+    protected synchronized void doCompile(final ClassWrangler classWrangler, final Set<File> sources, final File compileOutputDirectory)
             throws ClassNotFoundException, InstantiationException, IllegalAccessException, InvocationTargetException, MalformedURLException {
-        classWrangler = new ClassWrangler(classpath, getLog());
-
         logPluginClasspath();
         classWrangler.logGroovyVersion(mojoExecution.getMojoDescriptor().getGoal());
 
@@ -181,8 +177,8 @@ public abstract class AbstractCompileMojo extends AbstractGroovySourcesMojo {
             return;
         }
 
-        if (groovyVersionSupportsAction()) {
-            verifyGroovyVersionSupportsTargetBytecode();
+        if (groovyVersionSupportsAction(classWrangler)) {
+            verifyGroovyVersionSupportsTargetBytecode(classWrangler);
         } else {
             getLog().error("Your Groovy version (" + classWrangler.getGroovyVersionString() + ") doesn't support compilation.  The minimum version of Groovy required is " + minGroovyVersion + ".  Skipping compiling.");
             return;
@@ -194,24 +190,25 @@ public abstract class AbstractCompileMojo extends AbstractGroovySourcesMojo {
         Class<?> groovyClassLoaderClass = classWrangler.getClass("groovy.lang.GroovyClassLoader");
 
         // setup compile options
-        Object compilerConfiguration = setupCompilerConfiguration(compileOutputDirectory, compilerConfigurationClass);
-        Object groovyClassLoader = invokeConstructor(findConstructor(groovyClassLoaderClass, ClassLoader.class, compilerConfigurationClass), classWrangler.getClassLoader(), compilerConfiguration);
-        Object transformLoader = invokeConstructor(findConstructor(groovyClassLoaderClass, ClassLoader.class), classWrangler.getClassLoader());
+        Object compilerConfiguration = setupCompilerConfiguration(classWrangler, compileOutputDirectory, compilerConfigurationClass);
+        Object groovyClassLoader = classWrangler.invokeConstructor(classWrangler.findConstructor(groovyClassLoaderClass, ClassLoader.class, compilerConfigurationClass), classWrangler.getClassLoader(), compilerConfiguration);
+        Object transformLoader = classWrangler.invokeConstructor(classWrangler.findConstructor(groovyClassLoaderClass, ClassLoader.class), classWrangler.getClassLoader());
 
         // add Groovy sources
-        Object compilationUnit = setupCompilationUnit(sources, compilerConfigurationClass, compilationUnitClass, groovyClassLoaderClass, compilerConfiguration, groovyClassLoader, transformLoader);
+        Object compilationUnit = setupCompilationUnit(classWrangler, sources, compilerConfigurationClass, compilationUnitClass, groovyClassLoaderClass, compilerConfiguration, groovyClassLoader, transformLoader);
 
         // compile the classes
-        invokeMethod(findMethod(compilationUnitClass, "compile"), compilationUnit);
+        classWrangler.invokeMethod(classWrangler.findMethod(compilationUnitClass, "compile"), compilationUnit);
 
         // log compiled classes
-        List classes = (List) invokeMethod(findMethod(compilationUnitClass, "getClasses"), compilationUnit);
+        List classes = (List) classWrangler.invokeMethod(classWrangler.findMethod(compilationUnitClass, "getClasses"), compilationUnit);
         getLog().info("Compiled " + classes.size() + " file" + (classes.size() > 1 || classes.size() == 0 ? "s" : "") + ".");
     }
 
     /**
      * Sets up the CompilationUnit to use for compilation.
      *
+     * @param classWrangler the ClassWrangler to use to access Groovy classes
      * @param sources the sources to compile
      * @param compilerConfigurationClass the CompilerConfiguration class
      * @param compilationUnitClass the CompilationUnit class
@@ -224,17 +221,17 @@ public abstract class AbstractCompileMojo extends AbstractGroovySourcesMojo {
      * @throws IllegalAccessException when a method needed for setting up compilation unit cannot be accessed
      * @throws InvocationTargetException when a reflection invocation needed for setting up compilation unit cannot be completed
      */
-    protected Object setupCompilationUnit(final Set<File> sources, final Class<?> compilerConfigurationClass, final Class<?> compilationUnitClass, final Class<?> groovyClassLoaderClass, final Object compilerConfiguration, final Object groovyClassLoader, final Object transformLoader) throws InvocationTargetException, IllegalAccessException, InstantiationException {
+    protected Object setupCompilationUnit(final ClassWrangler classWrangler, final Set<File> sources, final Class<?> compilerConfigurationClass, final Class<?> compilationUnitClass, final Class<?> groovyClassLoaderClass, final Object compilerConfiguration, final Object groovyClassLoader, final Object transformLoader) throws InvocationTargetException, IllegalAccessException, InstantiationException {
         Object compilationUnit;
-        if (groovyAtLeast(GROOVY_1_6_0)) {
-            compilationUnit = invokeConstructor(findConstructor(compilationUnitClass, compilerConfigurationClass, CodeSource.class, groovyClassLoaderClass, groovyClassLoaderClass), compilerConfiguration, null, groovyClassLoader, transformLoader);
+        if (groovyAtLeast(classWrangler, GROOVY_1_6_0)) {
+            compilationUnit = classWrangler.invokeConstructor(classWrangler.findConstructor(compilationUnitClass, compilerConfigurationClass, CodeSource.class, groovyClassLoaderClass, groovyClassLoaderClass), compilerConfiguration, null, groovyClassLoader, transformLoader);
         } else {
-            compilationUnit = invokeConstructor(findConstructor(compilationUnitClass, compilerConfigurationClass, CodeSource.class, groovyClassLoaderClass), compilerConfiguration, null, groovyClassLoader);
+            compilationUnit = classWrangler.invokeConstructor(classWrangler.findConstructor(compilationUnitClass, compilerConfigurationClass, CodeSource.class, groovyClassLoaderClass), compilerConfiguration, null, groovyClassLoader);
         }
         getLog().debug("Adding Groovy to compile:");
         for (File source : sources) {
             getLog().debug("    " + source);
-            invokeMethod(findMethod(compilationUnitClass, "addSource", File.class), compilationUnit, source);
+            classWrangler.invokeMethod(classWrangler.findMethod(compilationUnitClass, "addSource", File.class), compilationUnit, source);
         }
 
         return compilationUnit;
@@ -243,6 +240,7 @@ public abstract class AbstractCompileMojo extends AbstractGroovySourcesMojo {
     /**
      * Sets up the CompilationConfiguration to use for compilation.
      *
+     * @param classWrangler the ClassWrangler to use to access Groovy classes
      * @param compileOutputDirectory the directory to write the compiled classes to
      * @param compilerConfigurationClass the CompilerConfiguration class
      * @return the CompilerConfiguration
@@ -252,42 +250,42 @@ public abstract class AbstractCompileMojo extends AbstractGroovySourcesMojo {
      * @throws InvocationTargetException when a reflection invocation needed for setting up CompilerConfiguration cannot be completed
      */
     @SuppressWarnings("unchecked")
-    protected Object setupCompilerConfiguration(final File compileOutputDirectory, final Class<?> compilerConfigurationClass) throws InvocationTargetException, IllegalAccessException, InstantiationException, ClassNotFoundException {
-        Object compilerConfiguration = invokeConstructor(findConstructor(compilerConfigurationClass));
+    protected Object setupCompilerConfiguration(final ClassWrangler classWrangler, final File compileOutputDirectory, final Class<?> compilerConfigurationClass) throws InvocationTargetException, IllegalAccessException, InstantiationException, ClassNotFoundException {
+        Object compilerConfiguration = classWrangler.invokeConstructor(classWrangler.findConstructor(compilerConfigurationClass));
         if (configScript != null) {
-            if (groovyAtLeast(GROOVY_2_1_0_BETA1) && configScript.exists()) {
+            if (groovyAtLeast(classWrangler, GROOVY_2_1_0_BETA1) && configScript.exists()) {
                 Class<?> bindingClass = classWrangler.getClass("groovy.lang.Binding");
                 Class<?> importCustomizerClass = classWrangler.getClass("org.codehaus.groovy.control.customizers.ImportCustomizer");
                 Class<?> groovyShellClass = classWrangler.getClass("groovy.lang.GroovyShell");
 
-                Object binding = invokeConstructor(findConstructor(bindingClass));
-                invokeMethod(findMethod(bindingClass, "setVariable", String.class, Object.class), binding, "configuration", compilerConfiguration);
-                Object shellCompilerConfiguration = invokeConstructor(findConstructor(compilerConfigurationClass));
-                Object importCustomizer = invokeConstructor(findConstructor(importCustomizerClass));
-                invokeMethod(findMethod(importCustomizerClass, "addStaticStar", String.class), importCustomizer, "org.codehaus.groovy.control.customizers.builder.CompilerCustomizationBuilder");
-                List compilationCustomizers = (List) invokeMethod(findMethod(compilerConfigurationClass, "getCompilationCustomizers"), shellCompilerConfiguration);
+                Object binding = classWrangler.invokeConstructor(classWrangler.findConstructor(bindingClass));
+                classWrangler.invokeMethod(classWrangler.findMethod(bindingClass, "setVariable", String.class, Object.class), binding, "configuration", compilerConfiguration);
+                Object shellCompilerConfiguration = classWrangler.invokeConstructor(classWrangler.findConstructor(compilerConfigurationClass));
+                Object importCustomizer = classWrangler.invokeConstructor(classWrangler.findConstructor(importCustomizerClass));
+                classWrangler.invokeMethod(classWrangler.findMethod(importCustomizerClass, "addStaticStar", String.class), importCustomizer, "org.codehaus.groovy.control.customizers.builder.CompilerCustomizationBuilder");
+                List compilationCustomizers = (List) classWrangler.invokeMethod(classWrangler.findMethod(compilerConfigurationClass, "getCompilationCustomizers"), shellCompilerConfiguration);
                 compilationCustomizers.add(importCustomizer);
-                Object shell = invokeConstructor(findConstructor(groovyShellClass, bindingClass, compilerConfigurationClass), binding, shellCompilerConfiguration);
+                Object shell = classWrangler.invokeConstructor(classWrangler.findConstructor(groovyShellClass, bindingClass, compilerConfigurationClass), binding, shellCompilerConfiguration);
                 getLog().debug("Using configuration script " + configScript + " for compilation.");
-                invokeMethod(findMethod(groovyShellClass, "evaluate", File.class), shell, configScript);
+                classWrangler.invokeMethod(classWrangler.findMethod(groovyShellClass, "evaluate", File.class), shell, configScript);
             } else {
                 getLog().warn("Requested to use configScript, but your Groovy version (" + classWrangler.getGroovyVersionString() + ") doesn't support it (must be " + GROOVY_2_1_0_BETA1 + " or newer).  Ignoring configScript parameter.");
             }
         }
-        invokeMethod(findMethod(compilerConfigurationClass, "setDebug", boolean.class), compilerConfiguration, debug);
-        invokeMethod(findMethod(compilerConfigurationClass, "setVerbose", boolean.class), compilerConfiguration, verbose);
-        invokeMethod(findMethod(compilerConfigurationClass, "setWarningLevel", int.class), compilerConfiguration, warningLevel);
-        invokeMethod(findMethod(compilerConfigurationClass, "setTolerance", int.class), compilerConfiguration, tolerance);
-        invokeMethod(findMethod(compilerConfigurationClass, "setTargetBytecode", String.class), compilerConfiguration, targetBytecode);
+        classWrangler.invokeMethod(classWrangler.findMethod(compilerConfigurationClass, "setDebug", boolean.class), compilerConfiguration, debug);
+        classWrangler.invokeMethod(classWrangler.findMethod(compilerConfigurationClass, "setVerbose", boolean.class), compilerConfiguration, verbose);
+        classWrangler.invokeMethod(classWrangler.findMethod(compilerConfigurationClass, "setWarningLevel", int.class), compilerConfiguration, warningLevel);
+        classWrangler.invokeMethod(classWrangler.findMethod(compilerConfigurationClass, "setTolerance", int.class), compilerConfiguration, tolerance);
+        classWrangler.invokeMethod(classWrangler.findMethod(compilerConfigurationClass, "setTargetBytecode", String.class), compilerConfiguration, targetBytecode);
         if (sourceEncoding != null) {
-            invokeMethod(findMethod(compilerConfigurationClass, "setSourceEncoding", String.class), compilerConfiguration, sourceEncoding);
+            classWrangler.invokeMethod(classWrangler.findMethod(compilerConfigurationClass, "setSourceEncoding", String.class), compilerConfiguration, sourceEncoding);
         }
-        invokeMethod(findMethod(compilerConfigurationClass, "setTargetDirectory", String.class), compilerConfiguration, compileOutputDirectory.getAbsolutePath());
+        classWrangler.invokeMethod(classWrangler.findMethod(compilerConfigurationClass, "setTargetDirectory", String.class), compilerConfiguration, compileOutputDirectory.getAbsolutePath());
         if (invokeDynamic) {
-            if (groovyAtLeast(GROOVY_2_0_0_BETA3)) {
+            if (groovyAtLeast(classWrangler, GROOVY_2_0_0_BETA3)) {
                 if (classWrangler.isGroovyIndy()) {
                     if (isJavaSupportIndy()) {
-                        Map<String, Boolean> optimizationOptions = (Map<String, Boolean>) invokeMethod(findMethod(compilerConfigurationClass, "getOptimizationOptions"), compilerConfiguration);
+                        Map<String, Boolean> optimizationOptions = (Map<String, Boolean>) classWrangler.invokeMethod(classWrangler.findMethod(compilerConfigurationClass, "getOptimizationOptions"), compilerConfiguration);
                         optimizationOptions.put("indy", true);
                         optimizationOptions.put("int", false);
                     } else {
@@ -306,16 +304,18 @@ public abstract class AbstractCompileMojo extends AbstractGroovySourcesMojo {
 
     /**
      * Throws an exception if targetBytecode is not supported with this version of Groovy.
+     *
+     * @param classWrangler the ClassWrangler to use to access Groovy classes
      */
-    protected void verifyGroovyVersionSupportsTargetBytecode() {
+    protected void verifyGroovyVersionSupportsTargetBytecode(final ClassWrangler classWrangler) {
         if ("1.9".equals(targetBytecode)) {
             throw new IllegalArgumentException("Target bytecode 1.9 is not yet supported.");
         } else if ("1.8".equals(targetBytecode)) {
-            if (groovyOlderThan(GROOVY_2_3_3)) {
+            if (groovyOlderThan(classWrangler, GROOVY_2_3_3)) {
                 throw new IllegalArgumentException("Target bytecode 1.8 requires Groovy " + GROOVY_2_3_3 + ".");
             }
         } else if ("1.7".equals(targetBytecode) || "1.6".equals(targetBytecode)) {
-            if (groovyOlderThan(GROOVY_2_1_3)) {
+            if (groovyOlderThan(classWrangler, GROOVY_2_1_3)) {
                 throw new IllegalArgumentException("Target bytecode 1.6 and 1.7 require Groovy " + GROOVY_2_1_3 + ".");
             }
         } else if (!"1.5".equals(targetBytecode) && !"1.4".equals(targetBytecode)) {
